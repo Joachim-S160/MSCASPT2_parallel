@@ -1,0 +1,36 @@
+# Configuration file for root-specific MS-CASPT2 workflow
+
+# Cluster configuration
+cluster:
+  account: "2025_026"
+  partition: "cpu_milan_rhel9"
+  walltime: "01:00:00"
+  max_blocks: 20  # Maximum number of parallel jobs
+  init_blocks: 0  # Number of jobs to start immediately
+  module: "autoCAS/3.0.0-iomkl-2023a"  # Exact module name
+  molcas_print: "verbose"
+  molcas_mem: 4000
+  molcas_nprocs: 1
+  omp_threads: 1
+  workdir_base: "/dodrio/scratch/projects/starting_2025_097/molcas_workdirs"
+  scheduler_options: "#SBATCH --clusters=dodrio\n"
+
+# Molecule information
+molecule:
+  name: "sorbaldehyde"
+  xyz_file: "/dodrio/scratch/projects/starting_2025_097/speedup_mscaspt2/rootcombparsl/sorbaldehyde.xyz"  # Path to XYZ file
+
+# Calculation settings for each spin state
+calculations:
+  # Singlet calculations
+  - name: "singlets"
+    spin: 1
+    n_roots: 3
+    rasorb_path: "/dodrio/scratch/projects/starting_2025_097/speedup_mscaspt2/rootcombparsl/sorbaldehyde-04.RasOrb"  # From autoCAS
+    rasscf_h5: "singlet.rasscf.h5"  # RASSCF h5 file for EFFE step
+    inactive: 22
+    ras2: 7
+    nactel: 8
+    basis: "ANO-S-VDZP"
+    imaginary: 0.1
+    output_dir: "./singlets"

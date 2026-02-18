@@ -1,0 +1,46 @@
+>> export MOLCAS_PRINT=verbose
+>> export MOLCAS_MOLDEN=ON
+>> export OMP_NUM_THREADS=1
+>> export MOLCAS_MEM = 20000
+
+
+&GATEWAY
+  Title= Po2
+  Coord= /dodrio/scratch/projects/starting_2025_097/speedup_mscaspt2/SO_CASSI_test/casscf/singlet/equilibrium_structures/Po2.xyz
+  Basis set
+  ANO-RCC-VTZP
+  Group= NoSym
+
+&SEWARD
+cholesky
+End of input
+
+&RASSCF
+  Title
+  Po2_RASSCF_S1_I1
+  FILEORB=/dodrio/scratch/projects/starting_2025_097/CAS_comparison/multi_state/diatomics_merlijn/latest/UHF_high_s/sm3/Po2/Po2_B500_S8_sm3/autocas_project/final/Po2_B500_S8_sm3.RasOrb
+  Symmetry
+  1
+  Spin
+  1
+  CIROOT
+  21  21  1
+  nActEl
+  12  0  0
+  Inactive
+  80
+  Ras2
+  8
+  Linear
+  Lumorb
+  THRS
+  1.0e-08  1.0e-04  1.0e-04
+  Levshft
+  1.50
+  Iteration
+  200  50
+  CIMX
+  200
+  SDAV
+  500
+End of Input

@@ -1,0 +1,53 @@
+# Virtual environment
+rootcombparsl/mscaspt2_venv/
+
+# ── Large Molcas binary outputs ──────────────────────────────────────────────
+# HDF5 checkpoint files
+*.h5
+
+# Cholesky decomposition library
+*.RICDLib
+
+# Molden orbital files (large)
+*.molden
+*.molden.[0-9]*
+
+# Orbital files generated during calculation
+*.GssOrb
+*.guessorb.*
+*.LprOrb
+*.LoProp.*
+*.SpdOrb.*
+*.RasOrb.[0-9]*     # numbered output orbitals
+# Named output RasOrb files inside calculation subdirs (keep sorbaldehyde-04.RasOrb)
+seperate_mscapst2_*/*.RasOrb
+mscaspt2/*.RasOrb
+
+# Molcas XML dump
+xmldump
+
+# ── Log / output / status files ──────────────────────────────────────────────
+*.log
+*.oldlog
+*.err
+*.status
+pbs.out
+pbs.err
+workflow.out
+workflow.err
+
+# ── Debug run artifacts ───────────────────────────────────────────────────────
+rootcombparsl/debug/runinfo/
+rootcombparsl/debug/test_root*/
+
+# ── Editor/script backup files ───────────────────────────────────────────────
+*.save
+*.save.[0-9]*
+
+# ── Python cache ──────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store

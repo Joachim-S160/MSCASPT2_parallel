@@ -1,0 +1,40 @@
+#!/bin/bash
+	
+#PBS -N MS_CASPT2R
+#PBS -o pbs.out
+#PBS -e pbs.err
+#PBS -l walltime=00:02:00
+#PBS -l mem=5gb
+#PBS -m be -M joachim.scheerlinck@ugent.be
+#PBS -l nodes=1:ppn=1
+#PBS -A 2025_026
+
+ulimit -s unlimited
+
+#Note that the workdir should be the one used by autoCAS, but not the autoCAS folder itself as to not overwrite data
+#While the fileorb should directly be used from the autocas final folder, to ensure the chosen autocas active space is used
+#export MOLCAS_WORKDIR=/dodrio/scratch/projects/starting_2025_097/molcas_workdirs/
+# Base workdir
+BASE_WORKDIR=/dodrio/scratch/projects/starting_2025_097/molcas_workdirs
+
+# Create a unique subdirectory using PBS_JOBID (preferred) or timestamp fallback
+if [ -n "$PBS_JOBID" ]; then
+    UNIQUE_ID=${PBS_JOBID%%.*}   # remove any suffix after the dot
+else
+    UNIQUE_ID=$(date +%Y%m%d_%H%M%S)
+fi
+
+export MOLCAS_WORKDIR=${BASE_WORKDIR}/${UNIQUE_ID}
+mkdir -p "$MOLCAS_WORKDIR"
+export MOLCAS_PRINT=verbose
+export MOLCAS_MOLDEN=ON
+export MOLCAS_MEM=4000
+export MOLCAS_NPROCS=1
+export OMP_NUM_THREADS=1
+
+cd ${PBS_O_WORKDIR}
+
+module load autoCAS
+module load vsc-mympirun
+
+pymolcas -np $MOLCAS_NPROCS seperate_mscapst2_3.inp -f

@@ -1,0 +1,46 @@
+ &GATEWAY
+Title
+Sorbaledehyde: 3-roots MS-CASPT2/SA-CASSCF
+COORD = sorbaldehyde.xyz
+GROUP = nosymm
+BASIS = ANO-S-VDZP
+RICD
+
+ &SEWARD
+DoAnalytical
+
+ &RASSCF
+File = sorbaldehyde-04.RasOrb
+CIONLY
+SPIN=1
+CIROOT = 3 3 1
+Inactive = 22
+RAS2 = 7
+NACTEL = 8
+ORBAppear = COMPACT
+
+ &CASPT2
+Multistate = all
+Imaginary = 0.1
+only=2
+
+
+>> FILE sorbaldehyde.xyz
+15
+
+C        -0.959299       -1.116639        0.644695
+C        -0.560778       -0.017861        0.010358
+C         0.848714        0.318409       -0.183818
+C         1.290986        1.407888       -0.812855
+C         2.736436        1.656188       -0.955802
+O         3.206379        2.603071       -1.503135
+H        -0.205179       -1.792972        1.035153
+C        -2.388959       -1.511292        0.872526
+H         1.572681       -0.381148        0.220032
+H         0.620177        2.143236       -1.237436
+H         3.389122        0.884312       -0.510640
+H        -1.292124        0.674127       -0.389162
+H        -3.074184       -0.779574        0.450086
+H        -2.591988       -1.604435        1.941161
+H        -2.591984       -2.483311        0.418837
+>> EOF

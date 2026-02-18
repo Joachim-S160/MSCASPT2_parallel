@@ -1,0 +1,22 @@
+&GATEWAY
+Title
+Sorbaldehyde: MS-CASPT2 Root Calculation
+COORD = /dodrio/scratch/projects/starting_2025_097/speedup_mscaspt2/rootcombparsl/debug/sorbaldehyde.xyz
+GROUP = nosymm
+BASIS = ANO-S-VDZP
+RICD
+&SEWARD
+DoAnalytical
+&RASSCF
+File = /dodrio/scratch/projects/starting_2025_097/speedup_mscaspt2/rootcombparsl/debug/sorbaldehyde-04.RasOrb
+CIONLY
+SPIN=1
+CIROOT = 3 3 1
+Inactive = 22
+RAS2 = 7
+NACTEL = 8
+ORBAppear = COMPACT
+&CASPT2
+Multistate = all
+Imaginary = 0.1
+only=1
