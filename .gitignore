@@ -2,9 +2,6 @@
 rootcombparsl/mscaspt2_venv/
 
 # ── Large Molcas binary outputs ──────────────────────────────────────────────
-# HDF5 checkpoint files
-*.h5
-
 # Cholesky decomposition library
 *.RICDLib
 
@@ -27,7 +24,6 @@ mscaspt2/*.RasOrb
 xmldump
 
 # ── Log / output / status files ──────────────────────────────────────────────
-*.log
 *.oldlog
 *.err
 *.status
