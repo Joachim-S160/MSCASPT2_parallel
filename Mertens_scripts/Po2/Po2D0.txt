@@ -1,0 +1,10 @@
+tpl10/Po2TPL10VIBROT.out:     D0(ev)                2.1419
+tpl11/Po2TPL11VIBROT.out:     D0(ev)                1.5758
+tpl12/Po2TPL12VIBROT.out:     D0(ev)                2.1290
+tpl1/Po2TPL1VIBROT.out:     D0(ev)                1.7970
+tpl2/Po2TPL2VIBROT.out:     D0(ev)                2.0692
+tpl3/Po2TPL3VIBROT.out:     D0(ev)                1.8250
+tpl5/Po2TPL5VIBROT.out:     D0(ev)                1.6794
+tpl6/Po2TPL6VIBROT.out:     D0(ev)                1.9777
+tpl7/Po2TPL7VIBROT.out:     D0(ev)                1.4316
+tpl9/Po2TPL9VIBROT.out:     D0(ev)                1.8071
