@@ -6,7 +6,7 @@ Adapts run_mscaspt2_workflow.py for Po2's 6-spin/symmetry-block structure:
   - 6 blocks: singlet irr1/2, triplet irr1/2, quintet irr1/2
   - C2 symmetry (Group=XY), two-irrep Inactive/Ras2 format
   - Binary JOBMIX output (HPC OpenMolcas without HDF5 mode)
-  - Final SO-RASSI combining JOB001-JOB006 WITHOUT Ejob keyword
+  - Final SO-RASSI combining JOB001-JOB006 (Spin Orbit, Ejob, Omega)
 
 Two modes (--full-rasscf flag):
   Default (CIONLY): uses pre-converged autoCAS orbitals directly for CASPT2.
@@ -19,7 +19,7 @@ Workflow per block:
   → extract "Hamiltonian Effective Couplings" from each log
   → combined CASPT2+EFFE job → >>COPY $Project.JobMix JOB00X
 Final step:
-  SO-RASSI over JOB001-JOB006 (Spin Orbit, Omega, no Ejob)
+  SO-RASSI over JOB001-JOB006 (Spin Orbit, Ejob, Omega)
 
 Config: config_Po2.yml (6-block structure with inactive_c2, ras2_c2, job_number per block)
 
@@ -108,7 +108,6 @@ Po2 Root {root_idx}/{calc_params['n_roots']} spin={calc_params['spin']} sym={cal
 COORD = {xyz_file}
 GROUP = XY
 BASIS = {calc_params['basis']}
-RICD
 &SEWARD
 Cholesky
 &RASSCF
@@ -117,15 +116,20 @@ CIONLY
 SPIN = {calc_params['spin']}
 Symmetry = {calc_params['symmetry']}
 CIROOT = {calc_params['n_roots']} {calc_params['n_roots']} 1
+nActEl = {calc_params['nactel']} 0 0
 Inactive = {calc_params['inactive_c2']}
 Ras2 = {calc_params['ras2_c2']}
-NACTEL = {calc_params['nactel']}
+THRS = 1.0e-08 1.0e-04 1.0e-04
+Levshft = 0.1
+Iteration = 200 50
+CIMX = 200
+SDAV = 500
 ORBAppear = COMPACT
 &CASPT2
 MAXITER = 300
 Frozen = {calc_params['inactive_c2']}
 Multistate = all
-Imaginary = {calc_params['imaginary']}
+Imaginary Shift = {calc_params['imaginary']}
 only = {root_idx}
 """
 
@@ -160,7 +164,6 @@ Po2 RASSCF spin={calc_params['spin']} sym={calc_params['symmetry']} (full opt)
 COORD = {xyz_file}
 GROUP = XY
 BASIS = {calc_params['basis']}
-RICD
 &SEWARD
 Cholesky
 &RASSCF
@@ -168,11 +171,14 @@ File = {rasorb_path}
 SPIN = {calc_params['spin']}
 Symmetry = {calc_params['symmetry']}
 CIROOT = {calc_params['n_roots']} {calc_params['n_roots']} 1
+nActEl = {calc_params['nactel']} 0 0
 Inactive = {calc_params['inactive_c2']}
 Ras2 = {calc_params['ras2_c2']}
-NACTEL = {calc_params['nactel']}
-Levshft = 0.5
+THRS = 1.0e-08 1.0e-04 1.0e-04
+Levshft = 0.1
 Iteration = 200 50
+CIMX = 200
+SDAV = 500
 ORBAppear = COMPACT
 """
 
@@ -320,7 +326,6 @@ Po2 Combined EFFE spin={calc_params['spin']} sym={calc_params['symmetry']} -> {j
 COORD = {xyz_file}
 GROUP = XY
 BASIS = {calc_params['basis']}
-RICD
 &SEWARD
 Cholesky
 &RASSCF
@@ -329,15 +334,20 @@ CIONLY
 SPIN = {calc_params['spin']}
 Symmetry = {calc_params['symmetry']}
 CIROOT = {n_roots} {n_roots} 1
+nActEl = {calc_params['nactel']} 0 0
 Inactive = {calc_params['inactive_c2']}
 Ras2 = {calc_params['ras2_c2']}
-NACTEL = {calc_params['nactel']}
+THRS = 1.0e-08 1.0e-04 1.0e-04
+Levshft = 0.1
+Iteration = 200 50
+CIMX = 200
+SDAV = 500
 ORBAppear = COMPACT
 &CASPT2
 MAXITER = 300
 Frozen = {calc_params['inactive_c2']}
 Multistate = all
-Imaginary = {calc_params['imaginary']}
+Imaginary Shift = {calc_params['imaginary']}
 EFFE
 {effe_block}
 >>COPY $Project.JobMix $CurrDir/{job_label}
@@ -357,7 +367,7 @@ def create_final_rassi_input(
     basis: str,
     inputs=[],
 ) -> str:
-    """Create the final SO-RASSI input combining all 6 JOBxxx files (no Ejob)."""
+    """Create the final SO-RASSI input combining all 6 JOBxxx files."""
     from pathlib import Path
     import os
 
@@ -380,17 +390,17 @@ def create_final_rassi_input(
 
     input_content = f"""&GATEWAY
 Title
-Po2 Final SO-RASSI {n_blocks} blocks (no Ejob)
+Po2 Final SO-RASSI {n_blocks} blocks
 COORD = {xyz_file}
 GROUP = XY
 BASIS = {basis}
-RICD
 &SEWARD
 Cholesky
 {copy_block}
 &RASSI
 Nr of JobIphs = {n_blocks} all
 Spin Orbit
+Ejob
 Omega
 End of Input
 """
@@ -718,7 +728,7 @@ def main():
     ).result()
     print(f"Final RASSI input: {rassi_inp}")
 
-    print("Running final SO-RASSI (Spin Orbit, no Ejob)...")
+    print("Running final SO-RASSI (Spin Orbit, Ejob, Omega)...")
     rassi_log = run_molcas(rassi_inp, workdir_base, molcas_nprocs, inputs=[]).result().strip()
     print(f"Final SO-RASSI done: {rassi_log}")
 
