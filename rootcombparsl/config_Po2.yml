@@ -1,0 +1,78 @@
+# Configuration for Po2 SO-CASSI via MS-CASPT2 EFFE parallelization
+# Reproducing Mertens et al. (JPCL 2019): D_e = 1.84 eV, R_e = 2.797 A
+#
+# 3 blocks: singlet (28 roots), triplet (90 roots), quintet (70 roots)
+# NoSym (Group=NoSym), CAS(12,8): Inactive=78, Ras2=8
+#
+# RASSI order (matching Po2_so_cassi.input): quintet=JOB001, triplet=JOB002, singlet=JOB003
+#
+# Workflow per block:
+#   - n_roots individual CASPT2(only=N) jobs → extract coupling matrix
+#   - Combined CASPT2+EFFE job → write JobMix → copy to JOB00X
+#   - Final RASSI(Spin Orbit, Ejob, Omega) combining JOB001-JOB003
+
+cluster:
+  account: "starting_2025_097"
+  partition: "cpu_milan_rhel9"
+  walltime: "02:00:00"        # Per individual root job
+  max_blocks: 100             # 90 triplet roots + buffer, run in parallel
+  init_blocks: 0
+  module: "autoCAS/3.0.0-iomkl-2023a"
+  molcas_print: "verbose"
+  molcas_mem: 20000           # 20 GB per root job (VQZP basis)
+  molcas_nprocs: 1
+  omp_threads: 1
+  workdir_base: "/dodrio/scratch/projects/starting_2025_097/molcas_workdirs"
+  scheduler_options: "#SBATCH --clusters=dodrio\n"
+
+molecule:
+  name: "Po2"
+  # TODO: set to the geometry you want to run (e.g. R=2.80 A equilibrium)
+  xyz_file: "/dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE/tests/molcas/SOCASSI/VQZP_25/po2.xyz"
+
+# 3 spin blocks for NoSym
+# rasorb_path: pre-converged autoCAS orbital for starting guess (CIONLY mode)
+#   OR starting point for singlet RASSCF (--full-rasscf mode; only singlet block used)
+# TODO: update rasorb_path to the correct system_X.RasOrb from autoCAS results_N25_rev/
+calculations:
+  # Quintet: 70 roots, S=5 → JOB001 (first in RASSI)
+  - name: "quintet"
+    spin: 5
+    symmetry: 1
+    n_roots: 70
+    job_number: 1
+    rasorb_path: "/dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE/tests/autocas/external_scf/Po2_scaling_test_final_casscf/VQZP/results_N25_rev/system_X.RasOrb"
+    inactive: 78
+    ras2: 8
+    nactel: 12
+    basis: "ANO-RCC-VQZP"
+    imaginary: 0.25
+    output_dir: "./quintet"
+
+  # Triplet: 90 roots, S=3 → JOB002
+  - name: "triplet"
+    spin: 3
+    symmetry: 1
+    n_roots: 90
+    job_number: 2
+    rasorb_path: "/dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE/tests/autocas/external_scf/Po2_scaling_test_final_casscf/VQZP/results_N25_rev/system_X.RasOrb"
+    inactive: 78
+    ras2: 8
+    nactel: 12
+    basis: "ANO-RCC-VQZP"
+    imaginary: 0.25
+    output_dir: "./triplet"
+
+  # Singlet: 28 roots, S=1 → JOB003 (last in RASSI)
+  - name: "singlet"
+    spin: 1
+    symmetry: 1
+    n_roots: 28
+    job_number: 3
+    rasorb_path: "/dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE/tests/autocas/external_scf/Po2_scaling_test_final_casscf/VQZP/results_N25_rev/system_X.RasOrb"
+    inactive: 78
+    ras2: 8
+    nactel: 12
+    basis: "ANO-RCC-VQZP"
+    imaginary: 0.25
+    output_dir: "./singlet"

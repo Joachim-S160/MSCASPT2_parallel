@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Po2 MS-CASPT2 EFFE workflow — 6-block C2 symmetry SO-CASSI.
+Po2 MS-CASPT2 EFFE workflow — NoSym SO-CASSI.
 
-Adapts run_mscaspt2_workflow.py for Po2's 6-spin/symmetry-block structure:
-  - 6 blocks: singlet irr1/2, triplet irr1/2, quintet irr1/2
-  - C2 symmetry (Group=XY), two-irrep Inactive/Ras2 format
+Adapts run_mscaspt2_workflow.py for Po2's 3-spin-block structure:
+  - 3 blocks: singlet (28 roots), triplet (90 roots), quintet (70 roots)
+  - NoSym (Group=NoSym), single Inactive/Ras2 values
   - Binary JOBMIX output (HPC OpenMolcas without HDF5 mode)
-  - Final SO-RASSI combining JOB001-JOB006 (Spin Orbit, Ejob, Omega)
+  - Final SO-RASSI combining JOB001-JOB003 (Spin Orbit, Ejob, Omega)
 
 Two modes (--full-rasscf flag):
   Default (CIONLY): uses pre-converged autoCAS orbitals directly for CASPT2.
@@ -21,7 +21,7 @@ Workflow per block:
 Final step:
   SO-RASSI over JOB001-JOB006 (Spin Orbit, Ejob, Omega)
 
-Config: config_Po2.yml (6-block structure with inactive_c2, ras2_c2, job_number per block)
+Config: config_Po2.yml (3-block NoSym structure with inactive, ras2, job_number per block)
 
 Fixes vs. original:
   - MpiRunLauncher → SimpleLauncher (single-node jobs, no MPI)
@@ -106,7 +106,7 @@ def create_root_input(
 Title
 Po2 Root {root_idx}/{calc_params['n_roots']} spin={calc_params['spin']} sym={calc_params['symmetry']}
 COORD = {xyz_file}
-GROUP = XY
+GROUP = NoSym
 BASIS = {calc_params['basis']}
 &SEWARD
 Cholesky
@@ -117,8 +117,8 @@ SPIN = {calc_params['spin']}
 Symmetry = {calc_params['symmetry']}
 CIROOT = {calc_params['n_roots']} {calc_params['n_roots']} 1
 nActEl = {calc_params['nactel']} 0 0
-Inactive = {calc_params['inactive_c2']}
-Ras2 = {calc_params['ras2_c2']}
+Inactive = {calc_params['inactive']}
+Ras2 = {calc_params['ras2']}
 THRS = 1.0e-08 1.0e-04 1.0e-04
 Levshft = 0.1
 Iteration = 200 50
@@ -127,7 +127,7 @@ SDAV = 500
 ORBAppear = COMPACT
 &CASPT2
 MAXITER = 300
-Frozen = {calc_params['inactive_c2']}
+Frozen = {calc_params['inactive']}
 Multistate = all
 Imaginary Shift = {calc_params['imaginary']}
 only = {root_idx}
@@ -162,7 +162,7 @@ def create_rasscf_input(
 Title
 Po2 RASSCF spin={calc_params['spin']} sym={calc_params['symmetry']} (full opt)
 COORD = {xyz_file}
-GROUP = XY
+GROUP = NoSym
 BASIS = {calc_params['basis']}
 &SEWARD
 Cholesky
@@ -172,8 +172,8 @@ SPIN = {calc_params['spin']}
 Symmetry = {calc_params['symmetry']}
 CIROOT = {calc_params['n_roots']} {calc_params['n_roots']} 1
 nActEl = {calc_params['nactel']} 0 0
-Inactive = {calc_params['inactive_c2']}
-Ras2 = {calc_params['ras2_c2']}
+Inactive = {calc_params['inactive']}
+Ras2 = {calc_params['ras2']}
 THRS = 1.0e-08 1.0e-04 1.0e-04
 Levshft = 0.1
 Iteration = 200 50
@@ -324,7 +324,7 @@ def create_combined_input(
 Title
 Po2 Combined EFFE spin={calc_params['spin']} sym={calc_params['symmetry']} -> {job_label}
 COORD = {xyz_file}
-GROUP = XY
+GROUP = NoSym
 BASIS = {calc_params['basis']}
 &SEWARD
 Cholesky
@@ -335,8 +335,8 @@ SPIN = {calc_params['spin']}
 Symmetry = {calc_params['symmetry']}
 CIROOT = {n_roots} {n_roots} 1
 nActEl = {calc_params['nactel']} 0 0
-Inactive = {calc_params['inactive_c2']}
-Ras2 = {calc_params['ras2_c2']}
+Inactive = {calc_params['inactive']}
+Ras2 = {calc_params['ras2']}
 THRS = 1.0e-08 1.0e-04 1.0e-04
 Levshft = 0.1
 Iteration = 200 50
@@ -345,7 +345,7 @@ SDAV = 500
 ORBAppear = COMPACT
 &CASPT2
 MAXITER = 300
-Frozen = {calc_params['inactive_c2']}
+Frozen = {calc_params['inactive']}
 Multistate = all
 Imaginary Shift = {calc_params['imaginary']}
 EFFE
@@ -392,7 +392,7 @@ def create_final_rassi_input(
 Title
 Po2 Final SO-RASSI {n_blocks} blocks
 COORD = {xyz_file}
-GROUP = XY
+GROUP = NoSym
 BASIS = {basis}
 &SEWARD
 Cholesky
@@ -441,8 +441,8 @@ def process_block(
         'n_roots': n_roots,
         'spin': spin_config['spin'],
         'symmetry': spin_config['symmetry'],
-        'inactive_c2': spin_config['inactive_c2'],
-        'ras2_c2': spin_config['ras2_c2'],
+        'inactive': spin_config['inactive'],
+        'ras2': spin_config['ras2'],
         'nactel': spin_config['nactel'],
         'basis': spin_config.get('basis', 'ANO-RCC-VQZP'),
         'imaginary': spin_config.get('imaginary', 0.25),
@@ -529,8 +529,8 @@ def process_spin_group_with_rasscf(
             'spin': block['spin'],
             'symmetry': block['symmetry'],
             'n_roots': block['n_roots'],
-            'inactive_c2': block['inactive_c2'],
-            'ras2_c2': block['ras2_c2'],
+            'inactive': block['inactive'],
+            'ras2': block['ras2'],
             'nactel': block['nactel'],
             'basis': block.get('basis', 'ANO-RCC-VQZP'),
             'imaginary': block.get('imaginary', 0.25),
@@ -605,8 +605,8 @@ def _submit_caspt2_for_block(
         'n_roots': n_roots,
         'spin': spin_config['spin'],
         'symmetry': spin_config['symmetry'],
-        'inactive_c2': spin_config['inactive_c2'],
-        'ras2_c2': spin_config['ras2_c2'],
+        'inactive': spin_config['inactive'],
+        'ras2': spin_config['ras2'],
         'nactel': spin_config['nactel'],
         'basis': spin_config.get('basis', 'ANO-RCC-VQZP'),
         'imaginary': spin_config.get('imaginary', 0.25),
@@ -651,7 +651,7 @@ def _submit_caspt2_for_block(
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Po2 EFFE MS-CASPT2 workflow — 6 spin/symmetry blocks, C2 symmetry'
+        description='Po2 EFFE MS-CASPT2 workflow — 3 spin blocks, NoSym'
     )
     parser.add_argument('config', help='Path to config_Po2.yml')
     parser.add_argument(
