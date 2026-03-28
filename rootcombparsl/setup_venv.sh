@@ -28,6 +28,9 @@ pip install numpy
 echo "Installing PyYAML..."
 pip install pyyaml
 
+echo "Installing Parsl runtime dependencies..."
+pip install requests psutil sortedcontainers
+
 echo ""
 echo "=========================================="
 echo "Virtual environment setup complete!"
