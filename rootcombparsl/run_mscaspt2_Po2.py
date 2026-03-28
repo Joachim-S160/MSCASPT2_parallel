@@ -360,6 +360,17 @@ def extract_couplings(log_file: str) -> Tuple[int, List[float]]:
     return (root_idx, couplings)
 
 
+def _log_is_complete(log_path: str) -> bool:
+    """Return True if log exists and contains OpenMolcas completion marker."""
+    if not os.path.isfile(log_path):
+        return False
+    try:
+        with open(log_path, 'r') as f:
+            return 'Happy landing' in f.read()
+    except OSError:
+        return False
+
+
 def _make_calc_params(spin_config: Dict[str, Any], xyz_content: str,
                       rasorb_path: str) -> Dict[str, Any]:
     return {
@@ -388,14 +399,19 @@ def _run_rasscf_for_block(
     xyz_content: str,
     workdir_base: str,
     molcas_nprocs: int,
+    restart: bool = False,
 ) -> str:
     """Run full RASSCF for one spin block. Blocks until done. Returns output RasOrb path."""
     name = spin_config['name']
     rasscf_dir = os.path.abspath(f"{spin_config['output_dir']}/rasscf")
-    calc_params = _make_calc_params(spin_config, xyz_content, start_rasorb)
-
-    inp = create_rasscf_input(calc_params, start_rasorb, rasscf_dir)
     out_rasorb = os.path.abspath(f"{rasscf_dir}/{name}.RasOrb")
+
+    if restart and os.path.isfile(out_rasorb):
+        print(f"  RASSCF [{name}] — skipping (RasOrb exists: {out_rasorb})")
+        return out_rasorb
+
+    calc_params = _make_calc_params(spin_config, xyz_content, start_rasorb)
+    inp = create_rasscf_input(calc_params, start_rasorb, rasscf_dir)
     run_rasscf_and_copy_orb(
         inp, workdir_base, molcas_nprocs, out_rasorb, inputs=[]
     ).result()  # blocks; raises BashExitFailure on non-zero exit
@@ -409,10 +425,12 @@ def _launch_caspt2_jobs(
     xyz_content: str,
     workdir_base: str,
     molcas_nprocs: int,
+    restart: bool = False,
 ) -> Tuple[Dict[str, Any], List, str]:
     """Create input files locally, then submit CASPT2 root jobs to SLURM (non-blocking).
 
-    Returns (calc_params, mol_futures, combine_dir) for later collection.
+    Returns (calc_params, mol_futures, log_files, combine_dir) for later collection.
+    mol_futures[i] is None if restart=True and that root's log is already complete.
     """
     name = spin_config['name']
     n_roots = spin_config['n_roots']
@@ -427,10 +445,17 @@ def _launch_caspt2_jobs(
 
     log_files = [str(Path(inp).with_suffix('.log')) for inp in input_files]
 
-    print(f"  Submitting {n_roots} CASPT2 jobs [{name}] to SLURM (running in background)...")
+    if restart:
+        skipped = sum(1 for log in log_files if _log_is_complete(log))
+        to_submit = n_roots - skipped
+        print(f"  Restart: {skipped}/{n_roots} roots already complete [{name}], submitting {to_submit}")
+    else:
+        print(f"  Submitting {n_roots} CASPT2 jobs [{name}] to SLURM (running in background)...")
+
     mol_futures = [
-        run_molcas(inp, workdir_base, molcas_nprocs, inputs=[])
-        for inp in input_files
+        None if (restart and _log_is_complete(log_files[i]))
+        else run_molcas(inp, workdir_base, molcas_nprocs, inputs=[])
+        for i, inp in enumerate(input_files)
     ]
 
     return calc_params, mol_futures, log_files, os.path.abspath(f"{base_dir}/combined")
@@ -443,6 +468,7 @@ def _collect_and_effe(
     combine_dir: str,
     workdir_base: str,
     molcas_nprocs: int,
+    restart: bool = False,
 ) -> Dict[str, Any]:
     """Wait for CASPT2 root jobs, extract couplings, run EFFE combine."""
     name = calc_params['name']
@@ -451,14 +477,21 @@ def _collect_and_effe(
 
     print(f"\n--- Waiting for {n_roots} CASPT2 jobs [{name}] ---")
     for f in mol_futures:
-        f.result()  # blocks; raises BashExitFailure on non-zero exit
+        if f is not None:
+            f.result()  # blocks; raises BashExitFailure on non-zero exit
     print(f"  All jobs done [{name}]. Extracting couplings...")
 
     coupling_data = [extract_couplings(log) for log in log_files]
     print(f"  Couplings extracted [{name}]. Running EFFE combine...")
 
+    job_file = os.path.join(combine_dir, f"JOB{job_num:03d}")
+    combined_log = str(Path(combine_dir) / 'combined_effe.log')
+    if restart and os.path.isfile(job_file):
+        print(f"  EFFE [{name}] — skipping (JOB{job_num:03d} exists)")
+        return {'name': name, 'job_number': job_num, 'n_roots': n_roots,
+                'combined_dir': combine_dir, 'combined_log': combined_log}
+
     combined_inp = create_combined_input(coupling_data, calc_params, combine_dir)
-    combined_log = str(Path(combined_inp).with_suffix('.log'))
     run_molcas(combined_inp, workdir_base, molcas_nprocs, inputs=[]).result()
     print(f"  EFFE done [{name}]: {combined_log}")
 
@@ -478,8 +511,14 @@ def main():
         help='CIONLY mode: skip RASSCF re-optimisation, use autoCAS orbitals directly. '
              'Default: full RASSCF per spin block with pipelined CASPT2.'
     )
+    parser.add_argument(
+        '--restart', action='store_true',
+        help='Resume a partially completed run: skip steps whose outputs already exist '
+             '(RasOrb files, root CASPT2 logs with "Happy landing", JOB/SO-RASSI files).'
+    )
     args = parser.parse_args()
     full_rasscf = not args.no_rasscf
+    restart = args.restart
 
     config = load_config(args.config)
     setup_parsl(config['cluster'])
@@ -495,7 +534,8 @@ def main():
 
     print(f"\n{'='*60}")
     print(f"Po2 EFFE: {n_blocks} blocks, {total_roots} root jobs")
-    print(f"Mode: {'full RASSCF + pipelined CASPT2' if full_rasscf else 'CIONLY'}")
+    print(f"Mode: {'full RASSCF + pipelined CASPT2' if full_rasscf else 'CIONLY'}"
+          + (" [RESTART]" if restart else ""))
     print(f"{'='*60}\n")
 
     block_results = []
@@ -515,14 +555,16 @@ def main():
 
             # Run RASSCF — blocks. Previously submitted CASPT2 jobs run in parallel on SLURM.
             current_rasorb = _run_rasscf_for_block(
-                spin_config, current_rasorb, xyz_content, workdir_base, molcas_nprocs
+                spin_config, current_rasorb, xyz_content, workdir_base, molcas_nprocs,
+                restart=restart,
             )
 
             # Submit CASPT2 root jobs immediately — non-blocking.
             # They run on SLURM while the next spin's RASSCF executes.
             pending.append(
                 _launch_caspt2_jobs(
-                    spin_config, current_rasorb, xyz_content, workdir_base, molcas_nprocs
+                    spin_config, current_rasorb, xyz_content, workdir_base, molcas_nprocs,
+                    restart=restart,
                 )
             )
 
@@ -532,7 +574,8 @@ def main():
 
         for calc_params, mol_futures, log_files, combine_dir in pending:
             block_results.append(
-                _collect_and_effe(calc_params, mol_futures, log_files, combine_dir, workdir_base, molcas_nprocs)
+                _collect_and_effe(calc_params, mol_futures, log_files, combine_dir, workdir_base, molcas_nprocs,
+                                  restart=restart)
             )
 
     else:
@@ -551,10 +594,19 @@ def main():
                 for r in range(1, n_roots + 1)
             ]
             log_files = [str(Path(inp).with_suffix('.log')) for inp in input_files]
-            mol_futures = [run_molcas(inp, workdir_base, molcas_nprocs, inputs=[]) for inp in input_files]
+            if restart:
+                skipped = sum(1 for log in log_files if _log_is_complete(log))
+                to_submit = n_roots - skipped
+                print(f"  Restart: {skipped}/{n_roots} roots already complete [{name}], submitting {to_submit}")
+            mol_futures = [
+                None if (restart and _log_is_complete(log_files[i]))
+                else run_molcas(inp, workdir_base, molcas_nprocs, inputs=[])
+                for i, inp in enumerate(input_files)
+            ]
             combine_dir = os.path.abspath(f"{base_dir}/combined")
             block_results.append(
-                _collect_and_effe(calc_params, mol_futures, log_files, combine_dir, workdir_base, molcas_nprocs)
+                _collect_and_effe(calc_params, mol_futures, log_files, combine_dir, workdir_base, molcas_nprocs,
+                                  restart=restart)
             )
 
     # Final SO-RASSI
@@ -563,8 +615,11 @@ def main():
     rassi_dir = "./final_rassi"
     rassi_inp = create_final_rassi_input(block_results, rassi_dir, xyz_content, basis)
     rassi_log = str(Path(rassi_inp).with_suffix('.log'))
-    run_molcas(rassi_inp, workdir_base, molcas_nprocs, inputs=[]).result()
-    print(f"Final SO-RASSI done: {rassi_log}")
+    if restart and _log_is_complete(rassi_log):
+        print(f"Final SO-RASSI — skipping (log exists and complete)")
+    else:
+        run_molcas(rassi_inp, workdir_base, molcas_nprocs, inputs=[]).result()
+        print(f"Final SO-RASSI done: {rassi_log}")
 
     print(f"\n{'='*60}")
     print("PO2 EFFE WORKFLOW COMPLETED")
