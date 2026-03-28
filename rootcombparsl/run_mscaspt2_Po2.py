@@ -80,6 +80,7 @@ which pymolcas || echo "WARNING: pymolcas not found in PATH"
             )
         ],
         strategy='htex_auto_scale',
+        retries=1,
     )
     parsl.load(config)
 
