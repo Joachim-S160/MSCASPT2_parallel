@@ -10,13 +10,14 @@
 
 # =============================================================================
 # Master orchestrator for Po2 EFFE MS-CASPT2 workflow.
-# Runs run_mscaspt2_Po2.py which:
-#   1. Submits 206 individual CASPT2(only=N) jobs via Parsl/SLURM (~2h each)
-#   2. Runs 6 combined CASPT2+EFFE jobs (one per spin/symmetry block)
-#   3. Runs the final SO-RASSI combining JOB001-JOB006 (no Ejob)
+# Pipelined full-RASSCF mode (default):
+#   Singlet RASSCF → submit 28 singlet CASPT2 jobs (SLURM, parallel)
+#                  + Triplet RASSCF → submit 90 triplet CASPT2 jobs
+#                  + Quintet RASSCF → submit 70 quintet CASPT2 jobs
+#   → collect all + EFFE combine × 3 → final SO-RASSI
 #
-# walltime=48h: accounts for serial block processing (6 blocks × ~2h each) +
-#               overhead. Individual root jobs run in parallel within each block.
+# walltime=48h: 3 RASSCF steps (~1h each) + wait for slowest CASPT2 block
+#               (~90 roots × serial at most 2h = ~2h if all parallel) + overhead.
 #
 # BEFORE SUBMITTING:
 #   1. Update rasorb_path entries in config_Po2.yml to ABSOLUTE paths on HPC

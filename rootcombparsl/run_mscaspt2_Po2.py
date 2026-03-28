@@ -2,40 +2,32 @@
 """
 Po2 MS-CASPT2 EFFE workflow — NoSym SO-CASSI.
 
-Adapts run_mscaspt2_workflow.py for Po2's 3-spin-block structure:
-  - 3 blocks: singlet (28 roots), triplet (90 roots), quintet (70 roots)
-  - NoSym (Group=NoSym), single Inactive/Ras2 values
-  - Binary JOBMIX output (HPC OpenMolcas without HDF5 mode)
-  - Final SO-RASSI combining JOB001-JOB003 (Spin Orbit, Ejob, Omega)
+Pipelined --full-rasscf mode (default for production):
+  Singlet RASSCF → submit singlet CASPT2 jobs + Triplet RASSCF
+                 → submit triplet CASPT2 jobs + Quintet RASSCF
+                 → submit quintet CASPT2 jobs
+                 → collect all + EFFE combine + SO-RASSI
 
-Two modes (--full-rasscf flag):
-  Default (CIONLY): uses pre-converged autoCAS orbitals directly for CASPT2.
-  Full RASSCF:      runs state-specific RASSCF per spin group first, then passes
-                    optimized orbitals to CASPT2. Orbital handoff between spin
-                    states: singlet → triplet → quintet (each uses previous as guess).
+CASPT2 root jobs for each spin block are submitted to SLURM immediately
+after that block's RASSCF completes, and run in parallel while the next
+spin's RASSCF runs. Input files are created locally (fast) — not in SLURM.
 
-Workflow per block:
-  n_roots individual CASPT2(only=N) jobs [parallel via Parsl SLURM]
-  → extract "Hamiltonian Effective Couplings" from each log
-  → combined CASPT2+EFFE job → >>COPY $Project.JobMix JOB00X
-Final step:
-  SO-RASSI over JOB001-JOB006 (Spin Orbit, Ejob, Omega)
+CIONLY mode (--no-rasscf): uses pre-converged autoCAS orbitals directly,
+skips RASSCF re-optimisation. Useful for testing.
 
-Config: config_Po2.yml (3-block NoSym structure with inactive, ras2, job_number per block)
-
-Fixes vs. original:
-  - MpiRunLauncher → SimpleLauncher (single-node jobs, no MPI)
-  - Log path: pymolcas writes log to input dir, not MOLCAS_WORKDIR
-  - Added full RASSCF + orbital handoff option (--full-rasscf)
+Config: config_Po2.yml
+  3 blocks: quintet (70 roots, JOB001), triplet (90 roots, JOB002),
+            singlet (28 roots, JOB003). NoSym, CAS(12,8).
 """
 
 import parsl
-from parsl import python_app, bash_app
+from parsl import bash_app
 from parsl.config import Config
 from parsl.executors import HighThroughputExecutor
 from parsl.providers import SlurmProvider
 from parsl.launchers import SimpleLauncher
 import os
+import re
 import yaml
 from pathlib import Path
 from typing import List, Tuple, Dict, Any, Optional
@@ -43,13 +35,16 @@ import numpy as np
 import argparse
 
 
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
 def load_config(config_file: str) -> Dict[str, Any]:
     with open(config_file, 'r') as f:
         return yaml.safe_load(f)
 
 
 def setup_parsl(cluster_config: Dict[str, Any]) -> None:
-    """Configure Parsl with SLURM provider for HPC."""
     config = Config(
         executors=[
             HighThroughputExecutor(
@@ -75,7 +70,7 @@ export OMP_NUM_THREADS={cluster_config.get('omp_threads', 1)}
 ulimit -s unlimited
 which pymolcas || echo "WARNING: pymolcas not found in PATH"
 """,
-                    launcher=SimpleLauncher(),  # Fixed: was MpiRunLauncher()
+                    launcher=SimpleLauncher(),
                 ),
             )
         ],
@@ -85,16 +80,12 @@ which pymolcas || echo "WARNING: pymolcas not found in PATH"
     parsl.load(config)
 
 
-@python_app
-def create_root_input(
-    root_idx: int,
-    calc_params: Dict[str, Any],
-    output_dir: str,
-) -> str:
-    """Create RASSCF(CIONLY)+CASPT2(only=N) input for one root of one block."""
-    from pathlib import Path
-    import os
+# ---------------------------------------------------------------------------
+# Input file creation — runs locally in master process (no Parsl overhead)
+# ---------------------------------------------------------------------------
 
+def create_root_input(root_idx: int, calc_params: Dict[str, Any], output_dir: str) -> str:
+    """Write RASSCF(CIONLY)+CASPT2(only=N) input for one root. Returns input file path."""
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     output_dir = os.path.abspath(output_dir)
     rasorb_path = os.path.abspath(calc_params['rasorb_path'])
@@ -103,7 +94,7 @@ def create_root_input(
     with open(xyz_file, 'w') as f:
         f.write(calc_params['xyz_content'])
 
-    input_content = f"""&GATEWAY
+    content = f"""&GATEWAY
 Title
 Po2 Root {root_idx}/{calc_params['n_roots']} spin={calc_params['spin']} sym={calc_params['symmetry']}
 COORD = {xyz_file}
@@ -133,24 +124,14 @@ Multistate = all
 Imaginary Shift = {calc_params['imaginary']}
 only = {root_idx}
 """
-
     input_file = f"{output_dir}/root{root_idx}.inp"
     with open(input_file, 'w') as f:
-        f.write(input_content)
+        f.write(content)
     return input_file
 
 
-@python_app
-def create_rasscf_input(
-    calc_params: Dict[str, Any],
-    start_rasorb: str,
-    output_dir: str,
-    inputs=[],
-) -> str:
-    """Create full RASSCF input (no CIONLY) for orbital optimization of one spin/irrep block."""
-    from pathlib import Path
-    import os
-
+def create_rasscf_input(calc_params: Dict[str, Any], start_rasorb: str, output_dir: str) -> str:
+    """Write full RASSCF input (no CIONLY) for orbital optimisation. Returns input file path."""
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     output_dir = os.path.abspath(output_dir)
     rasorb_path = os.path.abspath(start_rasorb)
@@ -159,7 +140,7 @@ def create_rasscf_input(
     with open(xyz_file, 'w') as f:
         f.write(calc_params['xyz_content'])
 
-    input_content = f"""&GATEWAY
+    content = f"""&GATEWAY
 Title
 Po2 RASSCF spin={calc_params['spin']} sym={calc_params['symmetry']} (full opt)
 COORD = {xyz_file}
@@ -182,116 +163,18 @@ CIMX = 200
 SDAV = 500
 ORBAppear = COMPACT
 """
-
     input_file = f"{output_dir}/rasscf_full.inp"
     with open(input_file, 'w') as f:
-        f.write(input_content)
+        f.write(content)
     return input_file
 
 
-@bash_app
-def run_molcas(input_file: str, workdir_base: str, nprocs: int, inputs=[]) -> str:
-    """Run MOLCAS for one input file. Returns path to log file."""
-    import os
-    import time
-    from pathlib import Path
-
-    input_path = Path(input_file)
-    output_dir = str(input_path.parent)
-    job_name = input_path.stem
-    unique_id = f"parsl_{os.getpid()}_{int(time.time())}"
-    workdir = f"{workdir_base}/{unique_id}_{job_name}"
-
-    # Fixed: log is written by pymolcas to the input dir, not MOLCAS_WORKDIR
-    return f"""
-set -e
-export MOLCAS_WORKDIR={workdir}
-mkdir -p $MOLCAS_WORKDIR
-cd {output_dir}
-pymolcas -np {nprocs} {input_file} -f
-echo {output_dir}/{job_name}.log
-"""
-
-
-@bash_app
-def run_rasscf_and_copy_orb(input_file: str, workdir_base: str, nprocs: int,
-                             out_rasorb: str, inputs=[]) -> str:
-    """Run full RASSCF and copy the output .RasOrb to a stable path.
-
-    Returns the path to the copied .RasOrb file (out_rasorb).
-    """
-    import os
-    import time
-    from pathlib import Path
-
-    input_path = Path(input_file)
-    output_dir = str(input_path.parent)
-    job_name = input_path.stem
-    unique_id = f"parsl_{os.getpid()}_{int(time.time())}"
-    workdir = f"{workdir_base}/{unique_id}_{job_name}"
-
-    return f"""
-set -e
-export MOLCAS_WORKDIR={workdir}
-mkdir -p $MOLCAS_WORKDIR
-cd {output_dir}
-pymolcas -np {nprocs} {input_file} -f
-# pymolcas writes {job_name}.RasOrb in the current directory
-if [ ! -f {output_dir}/{job_name}.RasOrb ]; then
-    echo "ERROR: {output_dir}/{job_name}.RasOrb not found after RASSCF"
-    ls -la {output_dir}/
-    exit 1
-fi
-cp {output_dir}/{job_name}.RasOrb {out_rasorb}
-echo {out_rasorb}
-"""
-
-
-@python_app
-def extract_couplings(log_file: str, inputs=[]) -> Tuple[int, List[float]]:
-    """Parse 'Hamiltonian Effective Couplings' from a CASPT2(only=N) log file."""
-    import re
-    from pathlib import Path
-
-    log_path = Path(log_file)
-    root_match = re.search(r'root(\d+)', log_path.stem)
-    if not root_match:
-        raise ValueError(f"Cannot extract root index from log stem: {log_path.stem}")
-    root_idx = int(root_match.group(1))
-
-    with open(log_file, 'r') as f:
-        content = f.read()
-
-    # Section header, then lines of the form:  < N | <value>
-    pattern = r'Hamiltonian Effective Couplings.*?\n((?:.*?<.*?\n)*)'
-    match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
-    if not match:
-        raise ValueError(f"Could not find 'Hamiltonian Effective Couplings' in {log_file}")
-
-    couplings = []
-    for line in match.group(1).split('\n'):
-        if '<' in line:
-            couplings.append(float(line.split()[-1]))
-
-    return (root_idx, couplings)
-
-
-@python_app
 def create_combined_input(
     coupling_data: List[Tuple[int, List[float]]],
     calc_params: Dict[str, Any],
     output_dir: str,
-    inputs=[],
 ) -> str:
-    """Create RASSCF(CIONLY)+CASPT2(EFFE) combined input for one block.
-
-    Assembles the full H_eff matrix from individual root couplings and embeds
-    it as an EFFE block. Writes binary JOBMIX to $CurrDir/JOBxxx.
-    """
-    from pathlib import Path
-    import numpy as np
-    import os
-
+    """Write RASSCF(CIONLY)+CASPT2(EFFE) combined input. Returns input file path."""
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     output_dir = os.path.abspath(output_dir)
     rasorb_path = os.path.abspath(calc_params['rasorb_path'])
@@ -302,26 +185,20 @@ def create_combined_input(
     H_eff = np.zeros((n_roots, n_roots))
     for root_idx, couplings in coupling_data:
         if len(couplings) != n_roots:
-            raise ValueError(
-                f"Root {root_idx}: got {len(couplings)} couplings, expected {n_roots}"
-            )
+            raise ValueError(f"Root {root_idx}: got {len(couplings)} couplings, expected {n_roots}")
         H_eff[root_idx - 1, :] = couplings
 
-    effe_lines = [str(n_roots)]
-    for i in range(n_roots):
-        effe_lines.append(
-            " ".join([f"{H_eff[i, j]:.14E}" for j in range(n_roots)])
-        )
-    effe_block = "\n".join(effe_lines)
+    effe_block = "\n".join(
+        [str(n_roots)] +
+        [" ".join(f"{H_eff[i, j]:.14E}" for j in range(n_roots)) for i in range(n_roots)]
+    )
 
     xyz_file = f"{output_dir}/molecule.xyz"
     with open(xyz_file, 'w') as f:
         f.write(calc_params['xyz_content'])
 
-    job_num = calc_params['job_number']
-    job_label = f"JOB{job_num:03d}"
-
-    input_content = f"""&GATEWAY
+    job_label = f"JOB{calc_params['job_number']:03d}"
+    content = f"""&GATEWAY
 Title
 Po2 Combined EFFE spin={calc_params['spin']} sym={calc_params['symmetry']} -> {job_label}
 COORD = {xyz_file}
@@ -353,25 +230,19 @@ EFFE
 {effe_block}
 >>COPY $Project.JobMix $CurrDir/{job_label}
 """
-
     input_file = f"{output_dir}/combined_effe.inp"
     with open(input_file, 'w') as f:
-        f.write(input_content)
+        f.write(content)
     return input_file
 
 
-@python_app
 def create_final_rassi_input(
     block_results: List[Dict[str, Any]],
     output_dir: str,
     xyz_content: str,
     basis: str,
-    inputs=[],
 ) -> str:
-    """Create the final SO-RASSI input combining all 6 JOBxxx files."""
-    from pathlib import Path
-    import os
-
+    """Write final SO-RASSI input combining all JOBxxx files. Returns input file path."""
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     output_dir = os.path.abspath(output_dir)
 
@@ -382,14 +253,12 @@ def create_final_rassi_input(
     with open(xyz_file, 'w') as f:
         f.write(xyz_content)
 
-    copy_lines = []
-    for blk in block_results:
-        job_label = f"JOB{blk['job_number']:03d}"
-        src = f"{blk['combined_dir']}/{job_label}"
-        copy_lines.append(f">>COPY {src} {job_label}")
-    copy_block = "\n".join(copy_lines)
+    copy_block = "\n".join(
+        f">>COPY {blk['combined_dir']}/JOB{blk['job_number']:03d} JOB{blk['job_number']:03d}"
+        for blk in block_results
+    )
 
-    input_content = f"""&GATEWAY
+    content = f"""&GATEWAY
 Title
 Po2 Final SO-RASSI {n_blocks} blocks
 COORD = {xyz_file}
@@ -405,350 +274,307 @@ Ejob
 Omega
 End of Input
 """
-
     input_file = f"{output_dir}/final_rassi.inp"
     with open(input_file, 'w') as f:
-        f.write(input_content)
+        f.write(content)
     return input_file
 
 
-def process_block(
-    spin_config: Dict[str, Any],
-    xyz_content: str,
-    workdir_base: str,
-    molcas_nprocs: int,
-    rasorb_override: Optional[str] = None,
-) -> Dict[str, Any]:
-    """Process one spin/symmetry block: parallel root jobs → extract → combine.
+# ---------------------------------------------------------------------------
+# SLURM jobs — only actual MOLCAS runs go through Parsl
+# ---------------------------------------------------------------------------
 
-    rasorb_override: if given, use this .RasOrb instead of spin_config['rasorb_path'].
-    Returns dict with block metadata needed by the final RASSI step.
-    """
-    name = spin_config['name']
-    n_roots = spin_config['n_roots']
-    job_num = spin_config['job_number']
-    rasorb_path = rasorb_override if rasorb_override else spin_config['rasorb_path']
-    print(
-        f"\n--- Block: {name} | "
-        f"spin={spin_config['spin']}, sym={spin_config['symmetry']}, "
-        f"n_roots={n_roots}, -> JOB{job_num:03d} ---"
+@bash_app
+def run_molcas(input_file: str, workdir_base: str, nprocs: int, inputs=[]) -> str:
+    """Submit one MOLCAS job to SLURM. Returns log file path via stdout."""
+    import os
+    import time
+    from pathlib import Path
+
+    input_path = Path(input_file)
+    output_dir = str(input_path.parent)
+    job_name = input_path.stem
+    workdir = f"{workdir_base}/parsl_{os.getpid()}_{int(time.time())}_{job_name}"
+
+    return f"""
+set -e
+export MOLCAS_WORKDIR={workdir}
+mkdir -p $MOLCAS_WORKDIR
+cd {output_dir}
+pymolcas -np {nprocs} {input_file} -f
+echo {output_dir}/{job_name}.log
+"""
+
+
+@bash_app
+def run_rasscf_and_copy_orb(
+    input_file: str, workdir_base: str, nprocs: int, out_rasorb: str, inputs=[]
+) -> str:
+    """Run full RASSCF and copy output .RasOrb to a stable path. Returns that path via stdout."""
+    import os
+    import time
+    from pathlib import Path
+
+    input_path = Path(input_file)
+    output_dir = str(input_path.parent)
+    job_name = input_path.stem
+    workdir = f"{workdir_base}/parsl_{os.getpid()}_{int(time.time())}_{job_name}"
+
+    return f"""
+set -e
+export MOLCAS_WORKDIR={workdir}
+mkdir -p $MOLCAS_WORKDIR
+cd {output_dir}
+pymolcas -np {nprocs} {input_file} -f
+if [ ! -f {output_dir}/{job_name}.RasOrb ]; then
+    echo "ERROR: {output_dir}/{job_name}.RasOrb not found after RASSCF"
+    ls -la {output_dir}/
+    exit 1
+fi
+cp {output_dir}/{job_name}.RasOrb {out_rasorb}
+echo {out_rasorb}
+"""
+
+
+# ---------------------------------------------------------------------------
+# Local helpers (run in master process)
+# ---------------------------------------------------------------------------
+
+def extract_couplings(log_file: str) -> Tuple[int, List[float]]:
+    """Parse 'Hamiltonian Effective Couplings' from a CASPT2(only=N) log."""
+    root_match = re.search(r'root(\d+)', Path(log_file).stem)
+    if not root_match:
+        raise ValueError(f"Cannot extract root index from: {Path(log_file).stem}")
+    root_idx = int(root_match.group(1))
+
+    with open(log_file, 'r') as f:
+        content = f.read()
+
+    match = re.search(
+        r'Hamiltonian Effective Couplings.*?\n((?:.*?<.*?\n)*)',
+        content, re.DOTALL | re.IGNORECASE
     )
-    if rasorb_override:
-        print(f"  Using orbital override: {rasorb_override}")
+    if not match:
+        raise ValueError(f"Could not find 'Hamiltonian Effective Couplings' in {log_file}")
 
-    calc_params = {
-        'rasorb_path': rasorb_path,
-        'xyz_content': xyz_content,
-        'n_roots': n_roots,
-        'spin': spin_config['spin'],
-        'symmetry': spin_config['symmetry'],
-        'inactive': spin_config['inactive'],
-        'ras2': spin_config['ras2'],
-        'nactel': spin_config['nactel'],
-        'basis': spin_config.get('basis', 'ANO-RCC-VQZP'),
-        'imaginary': spin_config.get('imaginary', 0.25),
-        'job_number': job_num,
-    }
+    couplings = [float(line.split()[-1]) for line in match.group(1).split('\n') if '<' in line]
+    return (root_idx, couplings)
 
-    base_dir = spin_config['output_dir']
 
-    print(f"  Creating {n_roots} root input files...")
-    input_futures = [
-        create_root_input(root_idx, calc_params, f"{base_dir}/root{root_idx}")
-        for root_idx in range(1, n_roots + 1)
-    ]
-    input_files = [f.result() for f in input_futures]
-    print(f"  Input files ready ({len(input_files)} files).")
-
-    print(f"  Submitting {n_roots} CASPT2(only=N) jobs to SLURM...")
-    mol_futures = [
-        run_molcas(inp, workdir_base, molcas_nprocs, inputs=[])
-        for inp in input_files
-    ]
-    log_files = [f.result().strip() for f in mol_futures]
-    print(f"  All {len(log_files)} root jobs completed.")
-
-    print(f"  Extracting effective Hamiltonian couplings...")
-    coupling_futures = [
-        extract_couplings(log, inputs=[]) for log in log_files
-    ]
-    coupling_data = [f.result() for f in coupling_futures]
-    print(f"  Couplings extracted ({len(coupling_data)} rows).")
-
-    combine_dir = os.path.abspath(f"{base_dir}/combined")
-    combined_inp_future = create_combined_input(
-        coupling_data=coupling_data,
-        calc_params=calc_params,
-        output_dir=combine_dir,
-        inputs=[],
-    )
-    combined_inp = combined_inp_future.result()
-    print(f"  Combined EFFE input: {combined_inp}")
-
-    print(f"  Running combined CASPT2+EFFE job...")
-    combined_log_future = run_molcas(
-        combined_inp, workdir_base, molcas_nprocs, inputs=[]
-    )
-    combined_log = combined_log_future.result().strip()
-    print(f"  Combined job done: {combined_log}")
-
+def _make_calc_params(spin_config: Dict[str, Any], xyz_content: str,
+                      rasorb_path: str) -> Dict[str, Any]:
     return {
-        'name': name,
-        'job_number': job_num,
-        'n_roots': n_roots,
-        'combined_dir': combine_dir,
-        'combined_log': combined_log,
-    }
-
-
-def process_spin_group_with_rasscf(
-    blocks: List[Dict[str, Any]],
-    xyz_content: str,
-    workdir_base: str,
-    molcas_nprocs: int,
-    start_rasorb: str,
-) -> Tuple[List[Dict[str, Any]], str]:
-    """Process all blocks in one spin group with full RASSCF + orbital handoff.
-
-    Runs RASSCF for each irrep block sequentially (irr2 uses irr1 orbitals as
-    starting guess), then runs all CASPT2 root jobs for irr1 and irr2 in parallel.
-
-    Returns: (list of block results, path to last RASSCF .RasOrb for next spin group)
-    """
-    spin = blocks[0]['spin']
-    print(f"\n=== Spin group S={spin}: full RASSCF + parallel CASPT2 ===")
-
-    # Step 1: Run RASSCF for each irrep sequentially, passing orbitals forward
-    rasorb_for_block = {}
-    current_rasorb = start_rasorb
-    for block in blocks:
-        name = block['name']
-        rasscf_dir = os.path.abspath(f"{block['output_dir']}/rasscf")
-
-        calc_params = {
-            'xyz_content': xyz_content,
-            'spin': block['spin'],
-            'symmetry': block['symmetry'],
-            'n_roots': block['n_roots'],
-            'inactive': block['inactive'],
-            'ras2': block['ras2'],
-            'nactel': block['nactel'],
-            'basis': block.get('basis', 'ANO-RCC-VQZP'),
-            'imaginary': block.get('imaginary', 0.25),
-        }
-
-        print(f"  RASSCF: {name} (spin={block['spin']}, sym={block['symmetry']}) "
-              f"starting from {current_rasorb}")
-        inp_future = create_rasscf_input(
-            calc_params=calc_params,
-            start_rasorb=current_rasorb,
-            output_dir=rasscf_dir,
-            inputs=[],
-        )
-        rasscf_inp = inp_future.result()
-
-        out_rasorb = os.path.abspath(f"{rasscf_dir}/{name}.RasOrb")
-        rasorb_log_future = run_rasscf_and_copy_orb(
-            input_file=rasscf_inp,
-            workdir_base=workdir_base,
-            nprocs=molcas_nprocs,
-            out_rasorb=out_rasorb,
-            inputs=[],
-        )
-        rasorb_path = rasorb_log_future.result().strip()
-        print(f"  RASSCF done: {rasorb_path}")
-
-        rasorb_for_block[name] = rasorb_path
-        current_rasorb = rasorb_path  # irr2 starts from irr1 output
-
-    last_rasorb = current_rasorb  # return to caller for next spin group
-
-    # Step 2: Run CASPT2 for all blocks in parallel (irr1 and irr2 simultaneously)
-    print(f"  Submitting CASPT2 root jobs for all {len(blocks)} irrep blocks in parallel...")
-    block_futures = {}
-    for block in blocks:
-        name = block['name']
-        block_futures[name] = _submit_caspt2_for_block(
-            spin_config=block,
-            xyz_content=xyz_content,
-            workdir_base=workdir_base,
-            molcas_nprocs=molcas_nprocs,
-            rasorb_path=rasorb_for_block[name],
-        )
-
-    # Step 3: Collect results
-    block_results = []
-    for block in blocks:
-        name = block['name']
-        result = block_futures[name]
-        block_results.append(result)
-        print(f"  Block {name} complete: JOB{result['job_number']:03d}")
-
-    return block_results, last_rasorb
-
-
-def _submit_caspt2_for_block(
-    spin_config: Dict[str, Any],
-    xyz_content: str,
-    workdir_base: str,
-    molcas_nprocs: int,
-    rasorb_path: str,
-) -> Dict[str, Any]:
-    """Submit all CASPT2 root jobs for one block and run EFFE combine. Returns block result."""
-    name = spin_config['name']
-    n_roots = spin_config['n_roots']
-    job_num = spin_config['job_number']
-    base_dir = spin_config['output_dir']
-
-    calc_params = {
+        'name':       spin_config['name'],
         'rasorb_path': rasorb_path,
         'xyz_content': xyz_content,
-        'n_roots': n_roots,
-        'spin': spin_config['spin'],
-        'symmetry': spin_config['symmetry'],
-        'inactive': spin_config['inactive'],
-        'ras2': spin_config['ras2'],
-        'nactel': spin_config['nactel'],
-        'basis': spin_config.get('basis', 'ANO-RCC-VQZP'),
-        'imaginary': spin_config.get('imaginary', 0.25),
-        'job_number': job_num,
+        'n_roots':    spin_config['n_roots'],
+        'spin':       spin_config['spin'],
+        'symmetry':   spin_config['symmetry'],
+        'inactive':   spin_config['inactive'],
+        'ras2':       spin_config['ras2'],
+        'nactel':     spin_config['nactel'],
+        'basis':      spin_config.get('basis', 'ANO-RCC-VQZP'),
+        'imaginary':  spin_config.get('imaginary', 0.25),
+        'job_number': spin_config['job_number'],
     }
 
-    input_futures = [
-        create_root_input(root_idx, calc_params, f"{base_dir}/root{root_idx}")
-        for root_idx in range(1, n_roots + 1)
-    ]
-    input_files = [f.result() for f in input_futures]
 
+# ---------------------------------------------------------------------------
+# Workflow building blocks
+# ---------------------------------------------------------------------------
+
+def _run_rasscf_for_block(
+    spin_config: Dict[str, Any],
+    start_rasorb: str,
+    xyz_content: str,
+    workdir_base: str,
+    molcas_nprocs: int,
+) -> str:
+    """Run full RASSCF for one spin block. Blocks until done. Returns output RasOrb path."""
+    name = spin_config['name']
+    rasscf_dir = os.path.abspath(f"{spin_config['output_dir']}/rasscf")
+    calc_params = _make_calc_params(spin_config, xyz_content, start_rasorb)
+
+    inp = create_rasscf_input(calc_params, start_rasorb, rasscf_dir)
+    out_rasorb = os.path.abspath(f"{rasscf_dir}/{name}.RasOrb")
+    rasorb = run_rasscf_and_copy_orb(
+        inp, workdir_base, molcas_nprocs, out_rasorb, inputs=[]
+    ).result().strip()
+    print(f"  RASSCF [{name}] complete -> {rasorb}")
+    return rasorb
+
+
+def _launch_caspt2_jobs(
+    spin_config: Dict[str, Any],
+    rasorb_path: str,
+    xyz_content: str,
+    workdir_base: str,
+    molcas_nprocs: int,
+) -> Tuple[Dict[str, Any], List, str]:
+    """Create input files locally, then submit CASPT2 root jobs to SLURM (non-blocking).
+
+    Returns (calc_params, mol_futures, combine_dir) for later collection.
+    """
+    name = spin_config['name']
+    n_roots = spin_config['n_roots']
+    base_dir = spin_config['output_dir']
+    calc_params = _make_calc_params(spin_config, xyz_content, rasorb_path)
+
+    print(f"  Writing {n_roots} input files [{name}] locally...")
+    input_files = [
+        create_root_input(r, calc_params, f"{base_dir}/root{r}")
+        for r in range(1, n_roots + 1)
+    ]
+
+    print(f"  Submitting {n_roots} CASPT2 jobs [{name}] to SLURM (running in background)...")
     mol_futures = [
         run_molcas(inp, workdir_base, molcas_nprocs, inputs=[])
         for inp in input_files
     ]
+
+    return calc_params, mol_futures, os.path.abspath(f"{base_dir}/combined")
+
+
+def _collect_and_effe(
+    calc_params: Dict[str, Any],
+    mol_futures: List,
+    combine_dir: str,
+    workdir_base: str,
+    molcas_nprocs: int,
+) -> Dict[str, Any]:
+    """Wait for CASPT2 root jobs, extract couplings, run EFFE combine."""
+    name = calc_params['name']
+    n_roots = calc_params['n_roots']
+    job_num = calc_params['job_number']
+
+    print(f"\n--- Waiting for {n_roots} CASPT2 jobs [{name}] ---")
     log_files = [f.result().strip() for f in mol_futures]
+    print(f"  All jobs done [{name}]. Extracting couplings...")
 
-    coupling_futures = [extract_couplings(log, inputs=[]) for log in log_files]
-    coupling_data = [f.result() for f in coupling_futures]
+    coupling_data = [extract_couplings(log) for log in log_files]
+    print(f"  Couplings extracted [{name}]. Running EFFE combine...")
 
-    combine_dir = os.path.abspath(f"{base_dir}/combined")
-    combined_inp = create_combined_input(
-        coupling_data=coupling_data,
-        calc_params=calc_params,
-        output_dir=combine_dir,
-        inputs=[],
-    ).result()
-
+    combined_inp = create_combined_input(coupling_data, calc_params, combine_dir)
     combined_log = run_molcas(
         combined_inp, workdir_base, molcas_nprocs, inputs=[]
     ).result().strip()
+    print(f"  EFFE done [{name}]: {combined_log}")
 
-    return {
-        'name': name,
-        'job_number': job_num,
-        'n_roots': n_roots,
-        'combined_dir': combine_dir,
-        'combined_log': combined_log,
-    }
+    return {'name': name, 'job_number': job_num, 'n_roots': n_roots,
+            'combined_dir': combine_dir, 'combined_log': combined_log}
 
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Po2 EFFE MS-CASPT2 workflow — 3 spin blocks, NoSym'
-    )
+    parser = argparse.ArgumentParser(description='Po2 EFFE MS-CASPT2 workflow — NoSym, 3 spin blocks')
     parser.add_argument('config', help='Path to config_Po2.yml')
     parser.add_argument(
-        '--full-rasscf', action='store_true',
-        help='Run full RASSCF optimization per spin group before CASPT2 '
-             '(orbital handoff: singlet → triplet → quintet). '
-             'Default: use pre-converged autoCAS orbitals directly (CIONLY).'
+        '--no-rasscf', action='store_true',
+        help='CIONLY mode: skip RASSCF re-optimisation, use autoCAS orbitals directly. '
+             'Default: full RASSCF per spin block with pipelined CASPT2.'
     )
     args = parser.parse_args()
+    full_rasscf = not args.no_rasscf
 
-    print(f"Loading config: {args.config}")
     config = load_config(args.config)
-
-    print("Setting up Parsl (SLURM provider)...")
     setup_parsl(config['cluster'])
 
-    xyz_file = config['molecule']['xyz_file']
-    print(f"Loading geometry: {xyz_file}")
-    with open(xyz_file, 'r') as f:
+    with open(config['molecule']['xyz_file'], 'r') as f:
         xyz_content = f.read()
 
     workdir_base = config['cluster']['workdir_base']
     molcas_nprocs = config['cluster'].get('molcas_nprocs', 1)
     basis = config['calculations'][0]['basis']
-
     n_blocks = len(config['calculations'])
     total_roots = sum(c['n_roots'] for c in config['calculations'])
+
     print(f"\n{'='*60}")
-    print(f"Po2 EFFE workflow: {n_blocks} blocks, {total_roots} root jobs total")
-    print(f"Mode: {'full RASSCF + orbital handoff' if args.full_rasscf else 'CIONLY (pre-converged orbs)'}")
-    print(f"{'='*60}")
+    print(f"Po2 EFFE: {n_blocks} blocks, {total_roots} root jobs")
+    print(f"Mode: {'full RASSCF + pipelined CASPT2' if full_rasscf else 'CIONLY'}")
+    print(f"{'='*60}\n")
 
     block_results = []
 
-    if args.full_rasscf:
-        # Group blocks by spin multiplicity (preserving config order)
-        from itertools import groupby
-        spin_groups = []
-        for spin_val, group in groupby(config['calculations'], key=lambda b: b['spin']):
-            spin_groups.append(list(group))
+    if full_rasscf:
+        # Process spin blocks in ascending order: singlet(1)→triplet(3)→quintet(5)
+        # so RASSCF handoff uses the most closed-shell reference first.
+        spin_order = sorted(config['calculations'], key=lambda b: b['spin'])
+        current_rasorb = os.path.abspath(spin_order[0]['rasorb_path'])
+        print(f"Starting orbital: {current_rasorb}")
 
-        # Use the first block's rasorb_path as the global starting orbital
-        start_rasorb = os.path.abspath(config['calculations'][0]['rasorb_path'])
-        print(f"Starting orbital: {start_rasorb}")
+        pending = []  # (calc_params, mol_futures, combine_dir)
 
-        for spin_group in spin_groups:
-            results, start_rasorb = process_spin_group_with_rasscf(
-                blocks=spin_group,
-                xyz_content=xyz_content,
-                workdir_base=workdir_base,
-                molcas_nprocs=molcas_nprocs,
-                start_rasorb=start_rasorb,
+        for spin_config in spin_order:
+            name = spin_config['name']
+            print(f"\n=== RASSCF [{name}] spin={spin_config['spin']}, {spin_config['n_roots']} roots ===")
+
+            # Run RASSCF — blocks. Previously submitted CASPT2 jobs run in parallel on SLURM.
+            current_rasorb = _run_rasscf_for_block(
+                spin_config, current_rasorb, xyz_content, workdir_base, molcas_nprocs
             )
-            block_results.extend(results)
+
+            # Submit CASPT2 root jobs immediately — non-blocking.
+            # They run on SLURM while the next spin's RASSCF executes.
+            pending.append(
+                _launch_caspt2_jobs(
+                    spin_config, current_rasorb, xyz_content, workdir_base, molcas_nprocs
+                )
+            )
+
+        print(f"\n{'='*60}")
+        print("All RASSCF complete. Collecting CASPT2 + assembling EFFE...")
+        print(f"{'='*60}")
+
+        for calc_params, mol_futures, combine_dir in pending:
+            block_results.append(
+                _collect_and_effe(calc_params, mol_futures, combine_dir, workdir_base, molcas_nprocs)
+            )
+
     else:
-        # Original CIONLY mode: process each block sequentially
+        # CIONLY: process each block sequentially with pre-converged autoCAS orbitals
         for spin_config in config['calculations']:
-            result = process_block(
-                spin_config, xyz_content, workdir_base, molcas_nprocs
+            name = spin_config['name']
+            n_roots = spin_config['n_roots']
+            job_num = spin_config['job_number']
+            rasorb = spin_config['rasorb_path']
+            calc_params = _make_calc_params(spin_config, xyz_content, rasorb)
+            base_dir = spin_config['output_dir']
+
+            print(f"\n--- Block [{name}] spin={spin_config['spin']}, {n_roots} roots ---")
+            input_files = [
+                create_root_input(r, calc_params, f"{base_dir}/root{r}")
+                for r in range(1, n_roots + 1)
+            ]
+            mol_futures = [run_molcas(inp, workdir_base, molcas_nprocs, inputs=[]) for inp in input_files]
+            combine_dir = os.path.abspath(f"{base_dir}/combined")
+            block_results.append(
+                _collect_and_effe(calc_params, mol_futures, combine_dir, workdir_base, molcas_nprocs)
             )
-            block_results.append(result)
 
+    # Final SO-RASSI
     print(f"\n{'='*60}")
-    print(f"All {n_blocks} blocks complete. Building final SO-RASSI...")
-    print(f"{'='*60}")
-
+    print("Building final SO-RASSI...")
     rassi_dir = "./final_rassi"
-    rassi_inp = create_final_rassi_input(
-        block_results=block_results,
-        output_dir=rassi_dir,
-        xyz_content=xyz_content,
-        basis=basis,
-        inputs=[],
-    ).result()
-    print(f"Final RASSI input: {rassi_inp}")
-
-    print("Running final SO-RASSI (Spin Orbit, Ejob, Omega)...")
+    rassi_inp = create_final_rassi_input(block_results, rassi_dir, xyz_content, basis)
     rassi_log = run_molcas(rassi_inp, workdir_base, molcas_nprocs, inputs=[]).result().strip()
     print(f"Final SO-RASSI done: {rassi_log}")
 
     print(f"\n{'='*60}")
-    print("PO2 EFFE WORKFLOW COMPLETED SUCCESSFULLY")
-    print(f"{'='*60}")
+    print("PO2 EFFE WORKFLOW COMPLETED")
     for br in sorted(block_results, key=lambda x: x['job_number']):
         print(f"  JOB{br['job_number']:03d}: {br['name']} ({br['n_roots']} roots)")
-    print(f"  Final RASSI log: {rassi_log}")
+    print(f"  SO-RASSI log: {rassi_log}")
     print(f"{'='*60}")
 
     import subprocess
-    result = subprocess.run(
-        ['grep', '-m', '10', 'SO-RASSI State', rassi_log],
-        capture_output=True, text=True
-    )
-    if result.stdout:
+    grep = subprocess.run(['grep', '-m', '10', 'SO-RASSI State', rassi_log],
+                         capture_output=True, text=True)
+    if grep.stdout:
         print("\nSO-RASSI energies (first 10 states):")
-        print(result.stdout)
+        print(grep.stdout)
 
     parsl.clear()
 
