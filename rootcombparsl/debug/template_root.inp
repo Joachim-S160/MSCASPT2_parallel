@@ -1,14 +1,14 @@
 &GATEWAY
 Title
 Sorbaldehyde: MS-CASPT2 Root Calculation
-COORD = /dodrio/scratch/projects/starting_2025_097/speedup_mscaspt2/rootcombparsl/debug/sorbaldehyde.xyz
+COORD = /dodrio/scratch/projects/2025_060/speedup_mscaspt2/rootcombparsl/debug/sorbaldehyde.xyz
 GROUP = nosymm
 BASIS = ANO-S-VDZP
 RICD
 &SEWARD
 DoAnalytical
 &RASSCF
-File = /dodrio/scratch/projects/starting_2025_097/speedup_mscaspt2/rootcombparsl/debug/sorbaldehyde-04.RasOrb
+File = /dodrio/scratch/projects/2025_060/speedup_mscaspt2/rootcombparsl/debug/sorbaldehyde-04.RasOrb
 CIONLY
 SPIN=1
 CIROOT = 3 3 1

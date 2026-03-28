@@ -27,7 +27,7 @@ module load Python/3.11.3-GCCcore-12.3.0
 module load PyYAML/6.0-GCCcore-12.3.0
 
 echo "Activating virtual environment..."
-source /dodrio/scratch/projects/starting_2025_097/speedup_mscaspt2/rootcombparsl/mscaspt2_venv/bin/activate
+source /dodrio/scratch/projects/2025_060/speedup_mscaspt2/rootcombparsl/mscaspt2_venv/bin/activate
 
 # Verify installations
 echo "Python version: $(python --version)"

@@ -178,7 +178,7 @@ Example: 3 singlets + 5 triplets + 2 quintets = 10 roots
 After successful runs, you can clean up working directories:
 ```bash
 # Remove MOLCAS workdirs (they can be large!)
-rm -rf /dodrio/scratch/projects/starting_2025_097/molcas_workdirs/parsl_*
+rm -rf /dodrio/scratch/projects/2025_060/molcas_workdirs/parsl_*
 ```
 
 Keep your virtual environment for future runs!

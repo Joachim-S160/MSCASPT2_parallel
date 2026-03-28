@@ -6,7 +6,7 @@
 #PBS -l mem=8gb
 #PBS -l nodes=1:ppn=1
 #PBS -m be -M joachim.scheerlinck@ugent.be
-#PBS -A starting_2025_097
+#PBS -A 2025_060
 
 # =============================================================================
 # Master orchestrator for Po2 EFFE MS-CASPT2 workflow.

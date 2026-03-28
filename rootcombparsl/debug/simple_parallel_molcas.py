@@ -149,7 +149,7 @@ def main():
     
     # Configuration - UPDATE THESE
     template_file = "template_root.inp"  # Your template input file
-    workdir_base = "/dodrio/scratch/projects/starting_2025_097/molcas_workdirs"
+    workdir_base = "/dodrio/scratch/projects/2025_060/molcas_workdirs"
     n_roots = 3  # Number of roots to run
     
     # Check if template exists
