@@ -161,7 +161,7 @@ Levshft = 0.1
 Iteration = 200 50
 CIMX = 200
 SDAV = 500
-ORBAppear = COMPACT
+>>COPY $Project.RasOrb $CurrDir/$Project.RasOrb
 """
     input_file = f"{output_dir}/rasscf_full.inp"
     with open(input_file, 'w') as f:
