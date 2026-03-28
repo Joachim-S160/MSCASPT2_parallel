@@ -502,7 +502,7 @@ def main():
         # Process spin blocks in ascending order: singlet(1)→triplet(3)→quintet(5)
         # so RASSCF handoff uses the most closed-shell reference first.
         spin_order = sorted(config['calculations'], key=lambda b: b['spin'])
-        current_rasorb = os.path.abspath(spin_order[0]['rasorb_path'])
+        current_rasorb = os.path.abspath(config['molecule']['rasorb_path'])
         print(f"Starting orbital: {current_rasorb}")
 
         pending = []  # (calc_params, mol_futures, combine_dir)
@@ -535,11 +535,11 @@ def main():
 
     else:
         # CIONLY: process each block sequentially with pre-converged autoCAS orbitals
+        rasorb = os.path.abspath(config['molecule']['rasorb_path'])
         for spin_config in config['calculations']:
             name = spin_config['name']
             n_roots = spin_config['n_roots']
             job_num = spin_config['job_number']
-            rasorb = spin_config['rasorb_path']
             calc_params = _make_calc_params(spin_config, xyz_content, rasorb)
             base_dir = spin_config['output_dir']
 
