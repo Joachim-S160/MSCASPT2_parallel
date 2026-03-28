@@ -35,6 +35,10 @@ import numpy as np
 import argparse
 
 
+SEWARD_FILES = ["RunFile", "OneInt", "SymInfo", "NqGrid",
+                "ChVec1", "ChSel1", "ChRed", "ChDiag", "ChMap", "ChRst"]
+
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -84,7 +88,8 @@ which pymolcas || echo "WARNING: pymolcas not found in PATH"
 # Input file creation — runs locally in master process (no Parsl overhead)
 # ---------------------------------------------------------------------------
 
-def create_root_input(root_idx: int, calc_params: Dict[str, Any], output_dir: str) -> str:
+def create_root_input(root_idx: int, calc_params: Dict[str, Any], output_dir: str,
+                      seward_dir: str = "") -> str:
     """Write RASSCF(CIONLY)+CASPT2(only=N) input for one root. Returns input file path."""
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     output_dir = os.path.abspath(output_dir)
@@ -94,15 +99,21 @@ def create_root_input(root_idx: int, calc_params: Dict[str, Any], output_dir: st
     with open(xyz_file, 'w') as f:
         f.write(calc_params['xyz_content'])
 
+    if seward_dir:
+        seward_section = "\n".join(
+            f">>COPY {seward_dir}/seward.{f} $WorkDir/$Project.{f}"
+            for f in SEWARD_FILES
+        ) + "\n"
+    else:
+        seward_section = "&SEWARD\nCholesky\n"
+
     content = f"""&GATEWAY
 Title
 Po2 Root {root_idx}/{calc_params['n_roots']} spin={calc_params['spin']} sym={calc_params['symmetry']}
 COORD = {xyz_file}
 GROUP = NoSym
 BASIS = {calc_params['basis']}
-&SEWARD
-Cholesky
-&RASSCF
+{seward_section}&RASSCF
 File = {rasorb_path}
 CIONLY
 SPIN = {calc_params['spin']}
@@ -130,7 +141,8 @@ only = {root_idx}
     return input_file
 
 
-def create_rasscf_input(calc_params: Dict[str, Any], start_rasorb: str, output_dir: str) -> str:
+def create_rasscf_input(calc_params: Dict[str, Any], start_rasorb: str, output_dir: str,
+                        seward_dir: str = "") -> str:
     """Write full RASSCF input (no CIONLY) for orbital optimisation. Returns input file path."""
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     output_dir = os.path.abspath(output_dir)
@@ -140,15 +152,26 @@ def create_rasscf_input(calc_params: Dict[str, Any], start_rasorb: str, output_d
     with open(xyz_file, 'w') as f:
         f.write(calc_params['xyz_content'])
 
+    if seward_dir:
+        seward_section = "\n".join(
+            f">>COPY {seward_dir}/seward.{f} $WorkDir/$Project.{f}"
+            for f in SEWARD_FILES
+        ) + "\n"
+        save_section = ""
+    else:
+        seward_section = "&SEWARD\nCholesky\n"
+        save_section = "\n".join(
+            f">>COPY $Project.{f} $CurrDir/seward.{f}"
+            for f in SEWARD_FILES
+        ) + "\n"
+
     content = f"""&GATEWAY
 Title
 Po2 RASSCF spin={calc_params['spin']} sym={calc_params['symmetry']} (full opt)
 COORD = {xyz_file}
 GROUP = NoSym
 BASIS = {calc_params['basis']}
-&SEWARD
-Cholesky
-&RASSCF
+{seward_section}&RASSCF
 File = {rasorb_path}
 SPIN = {calc_params['spin']}
 Symmetry = {calc_params['symmetry']}
@@ -162,7 +185,7 @@ Iteration = 200 50
 CIMX = 200
 SDAV = 500
 >>COPY $Project.RasOrb $CurrDir/$Project.RasOrb
-"""
+{save_section}"""
     input_file = f"{output_dir}/rasscf_full.inp"
     with open(input_file, 'w') as f:
         f.write(content)
@@ -173,6 +196,7 @@ def create_combined_input(
     coupling_data: List[Tuple[int, List[float]]],
     calc_params: Dict[str, Any],
     output_dir: str,
+    seward_dir: str = "",
 ) -> str:
     """Write RASSCF(CIONLY)+CASPT2(EFFE) combined input. Returns input file path."""
     Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -197,6 +221,14 @@ def create_combined_input(
     with open(xyz_file, 'w') as f:
         f.write(calc_params['xyz_content'])
 
+    if seward_dir:
+        seward_section = "\n".join(
+            f">>COPY {seward_dir}/seward.{f} $WorkDir/$Project.{f}"
+            for f in SEWARD_FILES
+        ) + "\n"
+    else:
+        seward_section = "&SEWARD\nCholesky\n"
+
     job_label = f"JOB{calc_params['job_number']:03d}"
     content = f"""&GATEWAY
 Title
@@ -204,9 +236,7 @@ Po2 Combined EFFE spin={calc_params['spin']} sym={calc_params['symmetry']} -> {j
 COORD = {xyz_file}
 GROUP = NoSym
 BASIS = {calc_params['basis']}
-&SEWARD
-Cholesky
-&RASSCF
+{seward_section}&RASSCF
 File = {rasorb_path}
 CIONLY
 SPIN = {calc_params['spin']}
@@ -241,6 +271,7 @@ def create_final_rassi_input(
     output_dir: str,
     xyz_content: str,
     basis: str,
+    seward_dir: str = "",
 ) -> str:
     """Write final SO-RASSI input combining all JOBxxx files. Returns input file path."""
     Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -258,15 +289,21 @@ def create_final_rassi_input(
         for blk in block_results
     )
 
+    if seward_dir:
+        seward_section = "\n".join(
+            f">>COPY {seward_dir}/seward.{f} $WorkDir/$Project.{f}"
+            for f in SEWARD_FILES
+        ) + "\n"
+    else:
+        seward_section = "&SEWARD\nCholesky\n"
+
     content = f"""&GATEWAY
 Title
 Po2 Final SO-RASSI {n_blocks} blocks
 COORD = {xyz_file}
 GROUP = NoSym
 BASIS = {basis}
-&SEWARD
-Cholesky
-{copy_block}
+{seward_section}{copy_block}
 &RASSI
 Nr of JobIphs = {n_blocks} all
 Spin Orbit
@@ -400,6 +437,7 @@ def _run_rasscf_for_block(
     workdir_base: str,
     molcas_nprocs: int,
     restart: bool = False,
+    seward_dir: str = "",
 ) -> str:
     """Run full RASSCF for one spin block. Blocks until done. Returns output RasOrb path."""
     name = spin_config['name']
@@ -411,7 +449,7 @@ def _run_rasscf_for_block(
         return out_rasorb
 
     calc_params = _make_calc_params(spin_config, xyz_content, start_rasorb)
-    inp = create_rasscf_input(calc_params, start_rasorb, rasscf_dir)
+    inp = create_rasscf_input(calc_params, start_rasorb, rasscf_dir, seward_dir=seward_dir)
     run_rasscf_and_copy_orb(
         inp, workdir_base, molcas_nprocs, out_rasorb, inputs=[]
     ).result()  # blocks; raises BashExitFailure on non-zero exit
@@ -426,6 +464,7 @@ def _launch_caspt2_jobs(
     workdir_base: str,
     molcas_nprocs: int,
     restart: bool = False,
+    seward_dir: str = "",
 ) -> Tuple[Dict[str, Any], List, str]:
     """Create input files locally, then submit CASPT2 root jobs to SLURM (non-blocking).
 
@@ -439,7 +478,7 @@ def _launch_caspt2_jobs(
 
     print(f"  Writing {n_roots} input files [{name}] locally...")
     input_files = [
-        create_root_input(r, calc_params, f"{base_dir}/root{r}")
+        create_root_input(r, calc_params, f"{base_dir}/root{r}", seward_dir=seward_dir)
         for r in range(1, n_roots + 1)
     ]
 
@@ -469,6 +508,7 @@ def _collect_and_effe(
     workdir_base: str,
     molcas_nprocs: int,
     restart: bool = False,
+    seward_dir: str = "",
 ) -> Dict[str, Any]:
     """Wait for CASPT2 root jobs, extract couplings, run EFFE combine."""
     name = calc_params['name']
@@ -491,7 +531,7 @@ def _collect_and_effe(
         return {'name': name, 'job_number': job_num, 'n_roots': n_roots,
                 'combined_dir': combine_dir, 'combined_log': combined_log}
 
-    combined_inp = create_combined_input(coupling_data, calc_params, combine_dir)
+    combined_inp = create_combined_input(coupling_data, calc_params, combine_dir, seward_dir=seward_dir)
     run_molcas(combined_inp, workdir_base, molcas_nprocs, inputs=[]).result()
     print(f"  EFFE done [{name}]: {combined_log}")
 
@@ -539,6 +579,7 @@ def main():
     print(f"{'='*60}\n")
 
     block_results = []
+    seward_dir = ""  # set in full_rasscf branch; empty → &SEWARD in CIONLY mode
 
     if full_rasscf:
         # Process spin blocks in ascending order: singlet(1)→triplet(3)→quintet(5)
@@ -547,24 +588,37 @@ def main():
         current_rasorb = os.path.abspath(config['molecule']['rasorb_path'])
         print(f"Starting orbital: {current_rasorb}")
 
+        # Singlet RASSCF saves all 10 Seward files to its rasscf dir; all subsequent
+        # jobs inject them instead of rerunning &SEWARD (195× → 1× Seward total).
+        singlet_config = min(spin_order, key=lambda b: b['spin'])
+        seward_dir = os.path.abspath(f"{singlet_config['output_dir']}/rasscf")
+
         pending = []  # (calc_params, mol_futures, combine_dir)
 
-        for spin_config in spin_order:
+        for i, spin_config in enumerate(spin_order):
             name = spin_config['name']
             print(f"\n=== RASSCF [{name}] spin={spin_config['spin']}, {spin_config['n_roots']} roots ===")
+
+            # For singlet (i=0): run &SEWARD to create files; for triplet/quintet: inject.
+            rasscf_seward = (
+                seward_dir
+                if (i > 0 and os.path.isfile(os.path.join(seward_dir, 'seward.ChVec1')))
+                else ""
+            )
 
             # Run RASSCF — blocks. Previously submitted CASPT2 jobs run in parallel on SLURM.
             current_rasorb = _run_rasscf_for_block(
                 spin_config, current_rasorb, xyz_content, workdir_base, molcas_nprocs,
-                restart=restart,
+                restart=restart, seward_dir=rasscf_seward,
             )
 
             # Submit CASPT2 root jobs immediately — non-blocking.
             # They run on SLURM while the next spin's RASSCF executes.
+            # By the time SLURM executes these, singlet RASSCF has already created seward files.
             pending.append(
                 _launch_caspt2_jobs(
                     spin_config, current_rasorb, xyz_content, workdir_base, molcas_nprocs,
-                    restart=restart,
+                    restart=restart, seward_dir=seward_dir,
                 )
             )
 
@@ -575,7 +629,7 @@ def main():
         for calc_params, mol_futures, log_files, combine_dir in pending:
             block_results.append(
                 _collect_and_effe(calc_params, mol_futures, log_files, combine_dir, workdir_base, molcas_nprocs,
-                                  restart=restart)
+                                  restart=restart, seward_dir=seward_dir)
             )
 
     else:
@@ -613,7 +667,8 @@ def main():
     print(f"\n{'='*60}")
     print("Building final SO-RASSI...")
     rassi_dir = "./final_rassi"
-    rassi_inp = create_final_rassi_input(block_results, rassi_dir, xyz_content, basis)
+    rassi_seward = seward_dir if (full_rasscf and os.path.isfile(os.path.join(seward_dir, 'seward.ChVec1'))) else ""
+    rassi_inp = create_final_rassi_input(block_results, rassi_dir, xyz_content, basis, seward_dir=rassi_seward)
     rassi_log = str(Path(rassi_inp).with_suffix('.log'))
     if restart and _log_is_complete(rassi_log):
         print(f"Final SO-RASSI — skipping (log exists and complete)")
