@@ -12,28 +12,26 @@
 #   - Final RASSI(Spin Orbit, Ejob, Omega) combining JOB001-JOB003
 
 cluster:
-  account: "2025_060"
+  account: "2025_060"                  # billing account for SLURM jobs
   partition: "cpu_milan_rhel9"
-  walltime: "02:00:00"        # Per individual root job
-  max_blocks: 100             # 90 triplet roots + buffer, run in parallel
+  walltime: "02:00:00"                 # per individual root job
+  max_blocks: 100                      # 90 triplet roots + buffer, run in parallel
   init_blocks: 0
   module: "autoCAS/3.0.0-iomkl-2023a"
   molcas_print: "verbose"
-  molcas_mem: 20000           # 20 GB per root job (VQZP basis)
+  molcas_mem: 20000                    # 20 GB per root job (VQZP basis)
   molcas_nprocs: 1
   omp_threads: 1
-  workdir_base: "/dodrio/scratch/projects/2025_060/molcas_workdirs"
+  workdir_base: "/dodrio/scratch/projects/starting_2025_097/molcas_workdirs"
   scheduler_options: "#SBATCH --clusters=dodrio\n"
 
 molecule:
   name: "Po2"
-  # TODO: set to the geometry you want to run (e.g. R=2.80 A equilibrium)
-  xyz_file: "/dodrio/scratch/projects/2025_060/autoCAS4HE_built/autoCAS4HE/tests/molcas/SOCASSI/VQZP_25/po2.xyz"
+  xyz_file: "/dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE/tests/autocas/external_scf/Po2_scaling_test_final_casscf/VQZP/po2_016.xyz"
 
 # 3 spin blocks for NoSym
-# rasorb_path: pre-converged autoCAS orbital for starting guess (CIONLY mode)
-#   OR starting point for singlet RASSCF (--full-rasscf mode; only singlet block used)
-# TODO: update rasorb_path to the correct system_X.RasOrb from autoCAS results_N25_rev/
+# rasorb_path: autoCAS orbital for starting guess (singlet RASSCF starting point in default mode)
+# system_16 = R ≈ 2.9 Å ≈ equilibrium geometry
 calculations:
   # Quintet: 70 roots, S=5 → JOB001 (first in RASSI)
   - name: "quintet"
@@ -41,7 +39,7 @@ calculations:
     symmetry: 1
     n_roots: 70
     job_number: 1
-    rasorb_path: "/dodrio/scratch/projects/2025_060/autoCAS4HE_built/autoCAS4HE/tests/autocas/external_scf/Po2_scaling_test_final_casscf/VQZP/results_N25_rev/system_X.RasOrb"
+    rasorb_path: "/dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE/tests/autocas/external_scf/Po2_scaling_test_final_casscf/VQZP/results_N25_rev/system_16.RasOrb"
     inactive: 78
     ras2: 8
     nactel: 12
@@ -55,7 +53,7 @@ calculations:
     symmetry: 1
     n_roots: 90
     job_number: 2
-    rasorb_path: "/dodrio/scratch/projects/2025_060/autoCAS4HE_built/autoCAS4HE/tests/autocas/external_scf/Po2_scaling_test_final_casscf/VQZP/results_N25_rev/system_X.RasOrb"
+    rasorb_path: "/dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE/tests/autocas/external_scf/Po2_scaling_test_final_casscf/VQZP/results_N25_rev/system_16.RasOrb"
     inactive: 78
     ras2: 8
     nactel: 12
@@ -69,7 +67,7 @@ calculations:
     symmetry: 1
     n_roots: 28
     job_number: 3
-    rasorb_path: "/dodrio/scratch/projects/2025_060/autoCAS4HE_built/autoCAS4HE/tests/autocas/external_scf/Po2_scaling_test_final_casscf/VQZP/results_N25_rev/system_X.RasOrb"
+    rasorb_path: "/dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE/tests/autocas/external_scf/Po2_scaling_test_final_casscf/VQZP/results_N25_rev/system_16.RasOrb"
     inactive: 78
     ras2: 8
     nactel: 12

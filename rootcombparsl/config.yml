@@ -12,13 +12,13 @@ cluster:
   molcas_mem: 4000
   molcas_nprocs: 1
   omp_threads: 1
-  workdir_base: "/dodrio/scratch/projects/2025_060/molcas_workdirs"
+  workdir_base: "/dodrio/scratch/projects/starting_2025_097/molcas_workdirs"
   scheduler_options: "#SBATCH --clusters=dodrio\n"
 
 # Molecule information
 molecule:
   name: "sorbaldehyde"
-  xyz_file: "/dodrio/scratch/projects/2025_060/speedup_mscaspt2/rootcombparsl/sorbaldehyde.xyz"  # Path to XYZ file
+  xyz_file: "/dodrio/scratch/projects/starting_2025_097/speedup_mscaspt2/rootcombparsl/sorbaldehyde.xyz"  # Path to XYZ file
 
 # Calculation settings for each spin state
 calculations:
@@ -26,7 +26,7 @@ calculations:
   - name: "singlets"
     spin: 1
     n_roots: 3
-    rasorb_path: "/dodrio/scratch/projects/2025_060/speedup_mscaspt2/rootcombparsl/sorbaldehyde-04.RasOrb"  # From autoCAS
+    rasorb_path: "/dodrio/scratch/projects/starting_2025_097/speedup_mscaspt2/rootcombparsl/sorbaldehyde-04.RasOrb"  # From autoCAS
     rasscf_h5: "singlet.rasscf.h5"  # RASSCF h5 file for EFFE step
     inactive: 22
     ras2: 7
