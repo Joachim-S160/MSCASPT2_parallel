@@ -286,7 +286,7 @@ End of Input
 
 @bash_app
 def run_molcas(input_file: str, workdir_base: str, nprocs: int, inputs=[]) -> str:
-    """Submit one MOLCAS job to SLURM. Returns log file path via stdout."""
+    """Submit one MOLCAS job to SLURM. Returns exit code (int) via .result()."""
     import os
     import time
     from pathlib import Path
@@ -302,7 +302,6 @@ export MOLCAS_WORKDIR={workdir}
 mkdir -p $MOLCAS_WORKDIR
 cd {output_dir}
 pymolcas -np {nprocs} {input_file} -f
-echo {output_dir}/{job_name}.log
 """
 
 
@@ -397,11 +396,11 @@ def _run_rasscf_for_block(
 
     inp = create_rasscf_input(calc_params, start_rasorb, rasscf_dir)
     out_rasorb = os.path.abspath(f"{rasscf_dir}/{name}.RasOrb")
-    rasorb = run_rasscf_and_copy_orb(
+    run_rasscf_and_copy_orb(
         inp, workdir_base, molcas_nprocs, out_rasorb, inputs=[]
-    ).result().strip()
-    print(f"  RASSCF [{name}] complete -> {rasorb}")
-    return rasorb
+    ).result()  # blocks; raises BashExitFailure on non-zero exit
+    print(f"  RASSCF [{name}] complete -> {out_rasorb}")
+    return out_rasorb
 
 
 def _launch_caspt2_jobs(
@@ -426,18 +425,21 @@ def _launch_caspt2_jobs(
         for r in range(1, n_roots + 1)
     ]
 
+    log_files = [str(Path(inp).with_suffix('.log')) for inp in input_files]
+
     print(f"  Submitting {n_roots} CASPT2 jobs [{name}] to SLURM (running in background)...")
     mol_futures = [
         run_molcas(inp, workdir_base, molcas_nprocs, inputs=[])
         for inp in input_files
     ]
 
-    return calc_params, mol_futures, os.path.abspath(f"{base_dir}/combined")
+    return calc_params, mol_futures, log_files, os.path.abspath(f"{base_dir}/combined")
 
 
 def _collect_and_effe(
     calc_params: Dict[str, Any],
     mol_futures: List,
+    log_files: List[str],
     combine_dir: str,
     workdir_base: str,
     molcas_nprocs: int,
@@ -448,16 +450,16 @@ def _collect_and_effe(
     job_num = calc_params['job_number']
 
     print(f"\n--- Waiting for {n_roots} CASPT2 jobs [{name}] ---")
-    log_files = [f.result().strip() for f in mol_futures]
+    for f in mol_futures:
+        f.result()  # blocks; raises BashExitFailure on non-zero exit
     print(f"  All jobs done [{name}]. Extracting couplings...")
 
     coupling_data = [extract_couplings(log) for log in log_files]
     print(f"  Couplings extracted [{name}]. Running EFFE combine...")
 
     combined_inp = create_combined_input(coupling_data, calc_params, combine_dir)
-    combined_log = run_molcas(
-        combined_inp, workdir_base, molcas_nprocs, inputs=[]
-    ).result().strip()
+    combined_log = str(Path(combined_inp).with_suffix('.log'))
+    run_molcas(combined_inp, workdir_base, molcas_nprocs, inputs=[]).result()
     print(f"  EFFE done [{name}]: {combined_log}")
 
     return {'name': name, 'job_number': job_num, 'n_roots': n_roots,
@@ -528,9 +530,9 @@ def main():
         print("All RASSCF complete. Collecting CASPT2 + assembling EFFE...")
         print(f"{'='*60}")
 
-        for calc_params, mol_futures, combine_dir in pending:
+        for calc_params, mol_futures, log_files, combine_dir in pending:
             block_results.append(
-                _collect_and_effe(calc_params, mol_futures, combine_dir, workdir_base, molcas_nprocs)
+                _collect_and_effe(calc_params, mol_futures, log_files, combine_dir, workdir_base, molcas_nprocs)
             )
 
     else:
@@ -548,10 +550,11 @@ def main():
                 create_root_input(r, calc_params, f"{base_dir}/root{r}")
                 for r in range(1, n_roots + 1)
             ]
+            log_files = [str(Path(inp).with_suffix('.log')) for inp in input_files]
             mol_futures = [run_molcas(inp, workdir_base, molcas_nprocs, inputs=[]) for inp in input_files]
             combine_dir = os.path.abspath(f"{base_dir}/combined")
             block_results.append(
-                _collect_and_effe(calc_params, mol_futures, combine_dir, workdir_base, molcas_nprocs)
+                _collect_and_effe(calc_params, mol_futures, log_files, combine_dir, workdir_base, molcas_nprocs)
             )
 
     # Final SO-RASSI
@@ -559,7 +562,8 @@ def main():
     print("Building final SO-RASSI...")
     rassi_dir = "./final_rassi"
     rassi_inp = create_final_rassi_input(block_results, rassi_dir, xyz_content, basis)
-    rassi_log = run_molcas(rassi_inp, workdir_base, molcas_nprocs, inputs=[]).result().strip()
+    rassi_log = str(Path(rassi_inp).with_suffix('.log'))
+    run_molcas(rassi_inp, workdir_base, molcas_nprocs, inputs=[]).result()
     print(f"Final SO-RASSI done: {rassi_log}")
 
     print(f"\n{'='*60}")
