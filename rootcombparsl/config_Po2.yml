@@ -7,9 +7,9 @@
 # JOB file order for SO-RASSI:      quintet=JOB001, triplet=JOB002, singlet=JOB003
 
 cluster:
-  account: "2025_060"                  # billing account for SLURM jobs
+  account: "starting_2025_097"         # billing account for SLURM jobs
   partition: "cpu_milan_rhel9"
-  walltime: "02:00:00"                 # per individual root job
+  walltime: "04:00:00"                 # singlet RASSCF needs Seward (~35 min) + opt; root jobs finish well within 1h after Seward fix
   max_blocks: 100                      # 90 triplet roots + buffer, run in parallel
   init_blocks: 0
   module: "autoCAS/3.0.0-iomkl-2023a"
