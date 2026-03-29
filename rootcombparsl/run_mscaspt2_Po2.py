@@ -406,11 +406,11 @@ def run_molcas(input_file: str, workdir_base: str, nprocs: int, inputs=[]) -> st
     input_path = Path(input_file)
     output_dir = str(input_path.parent)
     job_name = input_path.stem
-    workdir = f"{workdir_base}/parsl_{os.getpid()}_{int(time.time())}_{job_name}"
+    workdir_suffix = f"parsl_{os.getpid()}_{int(time.time())}_{job_name}"
 
     return f"""
 set -e
-export MOLCAS_WORKDIR={workdir}
+export MOLCAS_WORKDIR=${{TMPDIR:-{workdir_base}}}/{workdir_suffix}
 mkdir -p $MOLCAS_WORKDIR
 cd {output_dir}
 pymolcas -np {nprocs} {input_file} -f
@@ -432,11 +432,11 @@ def run_rasscf_and_copy_orb(
     input_path = Path(input_file)
     output_dir = str(input_path.parent)
     job_name = input_path.stem
-    workdir = f"{workdir_base}/parsl_{os.getpid()}_{int(time.time())}_{job_name}"
+    workdir_suffix = f"parsl_{os.getpid()}_{int(time.time())}_{job_name}"
 
     return f"""
 set -e
-export MOLCAS_WORKDIR={workdir}
+export MOLCAS_WORKDIR=${{TMPDIR:-{workdir_base}}}/{workdir_suffix}
 mkdir -p $MOLCAS_WORKDIR
 cd {output_dir}
 pymolcas -np {nprocs} {input_file} -f
