@@ -57,6 +57,7 @@ def setup_parsl(cluster_config: Dict[str, Any]) -> None:
                                          cluster_config.get('walltime', '06:00:00'))
     long_walltime = cluster_config.get('long_walltime',
                                        cluster_config.get('walltime', '03:00:00'))
+    mem_per_node = cluster_config.get('mem_per_node', None)
     sched_opts = cluster_config.get('scheduler_options', "#SBATCH --clusters=dodrio\n")
 
     def _worker_init(nprocs: int) -> str:
@@ -83,6 +84,7 @@ which pymolcas || echo "WARNING: pymolcas not found in PATH"
                     init_blocks=cluster_config.get('init_blocks', 0),
                     max_blocks=cluster_config.get('max_blocks', 100),
                     walltime=caspt2_walltime,
+                    mem_per_node=mem_per_node,
                     scheduler_options=sched_opts,
                     worker_init=_worker_init(caspt2_nprocs),
                     launcher=SimpleLauncher(),
@@ -98,6 +100,7 @@ which pymolcas || echo "WARNING: pymolcas not found in PATH"
                     init_blocks=0,
                     max_blocks=cluster_config.get('rasscf_max_blocks', 3),
                     walltime=rasscf_walltime,
+                    mem_per_node=mem_per_node,
                     scheduler_options=sched_opts,
                     worker_init=_worker_init(rasscf_nprocs),
                     launcher=SimpleLauncher(),
@@ -113,6 +116,7 @@ which pymolcas || echo "WARNING: pymolcas not found in PATH"
                     init_blocks=0,
                     max_blocks=cluster_config.get('long_max_blocks', 10),
                     walltime=long_walltime,
+                    mem_per_node=mem_per_node,
                     scheduler_options=sched_opts,
                     worker_init=_worker_init(caspt2_nprocs),
                     launcher=SimpleLauncher(),
