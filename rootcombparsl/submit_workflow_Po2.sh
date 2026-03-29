@@ -54,7 +54,7 @@ echo ""
 
 # Run the Po2 EFFE workflow
 echo "Starting Po2 EFFE workflow..."
-python run_mscaspt2_Po2.py config_Po2.yml --restart
+python run_mscaspt2_Po2.py config_Po2.yml
 
 EXIT_CODE=$?
 

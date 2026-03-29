@@ -141,6 +141,45 @@ only = {root_idx}
     return input_file
 
 
+def create_caspt2_only_input(root_idx: int, calc_params: Dict[str, Any], output_dir: str,
+                             seward_dir: str, jobmix_path: str) -> str:
+    """Write CASPT2(only=N) input using injected JobIph — no RASSCF. Returns input file path."""
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    output_dir = os.path.abspath(output_dir)
+    jobmix_path = os.path.abspath(jobmix_path)
+
+    xyz_file = f"{output_dir}/molecule.xyz"
+    with open(xyz_file, 'w') as f:
+        f.write(calc_params['xyz_content'])
+
+    if seward_dir:
+        seward_section = "\n".join(
+            f">>COPY {seward_dir}/seward.{f} $WorkDir/$Project.{f}"
+            for f in SEWARD_FILES
+        ) + "\n"
+    else:
+        seward_section = "&SEWARD\nCholesky\n"
+
+    content = f"""&GATEWAY
+Title
+Po2 Root {root_idx}/{calc_params['n_roots']} spin={calc_params['spin']} sym={calc_params['symmetry']}
+COORD = {xyz_file}
+GROUP = NoSym
+BASIS = {calc_params['basis']}
+{seward_section}>>COPY {jobmix_path} $WorkDir/$Project.JobIph
+&CASPT2
+MAXITER = 300
+Frozen = {calc_params['inactive']}
+Multistate = all
+Imaginary Shift = {calc_params['imaginary']}
+only = {root_idx}
+"""
+    input_file = f"{output_dir}/root{root_idx}.inp"
+    with open(input_file, 'w') as f:
+        f.write(content)
+    return input_file
+
+
 def create_rasscf_input(calc_params: Dict[str, Any], start_rasorb: str, output_dir: str,
                         seward_dir: str = "") -> str:
     """Write full RASSCF input (no CIONLY) for orbital optimisation. Returns input file path."""
@@ -152,18 +191,19 @@ def create_rasscf_input(calc_params: Dict[str, Any], start_rasorb: str, output_d
     with open(xyz_file, 'w') as f:
         f.write(calc_params['xyz_content'])
 
+    name = calc_params['name']
     if seward_dir:
         seward_section = "\n".join(
             f">>COPY {seward_dir}/seward.{f} $WorkDir/$Project.{f}"
             for f in SEWARD_FILES
         ) + "\n"
-        save_section = ""
+        save_section = f">>COPY $Project.JobIph $CurrDir/{name}.JobIph\n"
     else:
         seward_section = "&SEWARD\nCholesky\n"
-        save_section = "\n".join(
-            f">>COPY $Project.{f} $CurrDir/seward.{f}"
-            for f in SEWARD_FILES
-        ) + "\n"
+        save_section = (
+            "\n".join(f">>COPY $Project.{f} $CurrDir/seward.{f}" for f in SEWARD_FILES)
+            + f"\n>>COPY $Project.JobIph $CurrDir/{name}.JobIph\n"
+        )
 
     content = f"""&GATEWAY
 Title
@@ -197,11 +237,14 @@ def create_combined_input(
     calc_params: Dict[str, Any],
     output_dir: str,
     seward_dir: str = "",
+    jobmix_path: str = "",
 ) -> str:
-    """Write RASSCF(CIONLY)+CASPT2(EFFE) combined input. Returns input file path."""
+    """Write CASPT2(EFFE) combined input. Returns input file path.
+
+    When jobmix_path is given, injects JobIph and skips RASSCF CIONLY entirely.
+    """
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     output_dir = os.path.abspath(output_dir)
-    rasorb_path = os.path.abspath(calc_params['rasorb_path'])
 
     coupling_data = sorted(coupling_data, key=lambda x: x[0])
     n_roots = calc_params['n_roots']
@@ -230,13 +273,13 @@ def create_combined_input(
         seward_section = "&SEWARD\nCholesky\n"
 
     job_label = f"JOB{calc_params['job_number']:03d}"
-    content = f"""&GATEWAY
-Title
-Po2 Combined EFFE spin={calc_params['spin']} sym={calc_params['symmetry']} -> {job_label}
-COORD = {xyz_file}
-GROUP = NoSym
-BASIS = {calc_params['basis']}
-{seward_section}&RASSCF
+
+    if jobmix_path:
+        jobmix_path = os.path.abspath(jobmix_path)
+        rasscf_block = f">>COPY {jobmix_path} $WorkDir/$Project.JobIph\n"
+    else:
+        rasorb_path = os.path.abspath(calc_params['rasorb_path'])
+        rasscf_block = f"""&RASSCF
 File = {rasorb_path}
 CIONLY
 SPIN = {calc_params['spin']}
@@ -251,7 +294,15 @@ Iteration = 200 50
 CIMX = 200
 SDAV = 500
 ORBAppear = COMPACT
-&CASPT2
+"""
+
+    content = f"""&GATEWAY
+Title
+Po2 Combined EFFE spin={calc_params['spin']} sym={calc_params['symmetry']} -> {job_label}
+COORD = {xyz_file}
+GROUP = NoSym
+BASIS = {calc_params['basis']}
+{seward_section}{rasscf_block}&CASPT2
 MAXITER = 300
 Frozen = {calc_params['inactive']}
 Multistate = all
@@ -438,15 +489,17 @@ def _run_rasscf_for_block(
     molcas_nprocs: int,
     restart: bool = False,
     seward_dir: str = "",
-) -> str:
-    """Run full RASSCF for one spin block. Blocks until done. Returns output RasOrb path."""
+) -> Tuple[str, str]:
+    """Run full RASSCF for one spin block. Blocks until done.
+    Returns (rasorb_path, jobiph_path)."""
     name = spin_config['name']
     rasscf_dir = os.path.abspath(f"{spin_config['output_dir']}/rasscf")
     out_rasorb = os.path.abspath(f"{rasscf_dir}/{name}.RasOrb")
+    out_jobiph = os.path.abspath(f"{rasscf_dir}/{name}.JobIph")
 
-    if restart and os.path.isfile(out_rasorb):
-        print(f"  RASSCF [{name}] — skipping (RasOrb exists: {out_rasorb})")
-        return out_rasorb
+    if restart and os.path.isfile(out_rasorb) and os.path.isfile(out_jobiph):
+        print(f"  RASSCF [{name}] — skipping (RasOrb+JobIph exist)")
+        return out_rasorb, out_jobiph
 
     calc_params = _make_calc_params(spin_config, xyz_content, start_rasorb)
     inp = create_rasscf_input(calc_params, start_rasorb, rasscf_dir, seward_dir=seward_dir)
@@ -454,7 +507,7 @@ def _run_rasscf_for_block(
         inp, workdir_base, molcas_nprocs, out_rasorb, inputs=[]
     ).result()  # blocks; raises BashExitFailure on non-zero exit
     print(f"  RASSCF [{name}] complete -> {out_rasorb}")
-    return out_rasorb
+    return out_rasorb, out_jobiph
 
 
 def _launch_caspt2_jobs(
@@ -465,8 +518,12 @@ def _launch_caspt2_jobs(
     molcas_nprocs: int,
     restart: bool = False,
     seward_dir: str = "",
+    jobmix_path: str = "",
 ) -> Tuple[Dict[str, Any], List, str]:
     """Create input files locally, then submit CASPT2 root jobs to SLURM (non-blocking).
+
+    When jobmix_path is given, each root job injects the shared JobIph and runs only
+    &CASPT2 (no RASSCF CIONLY). Otherwise falls back to RASSCF CIONLY + CASPT2.
 
     Returns (calc_params, mol_futures, log_files, combine_dir) for later collection.
     mol_futures[i] is None if restart=True and that root's log is already complete.
@@ -477,10 +534,16 @@ def _launch_caspt2_jobs(
     calc_params = _make_calc_params(spin_config, xyz_content, rasorb_path)
 
     print(f"  Writing {n_roots} input files [{name}] locally...")
-    input_files = [
-        create_root_input(r, calc_params, f"{base_dir}/root{r}", seward_dir=seward_dir)
-        for r in range(1, n_roots + 1)
-    ]
+    if jobmix_path:
+        input_files = [
+            create_caspt2_only_input(r, calc_params, f"{base_dir}/root{r}", seward_dir, jobmix_path)
+            for r in range(1, n_roots + 1)
+        ]
+    else:
+        input_files = [
+            create_root_input(r, calc_params, f"{base_dir}/root{r}", seward_dir=seward_dir)
+            for r in range(1, n_roots + 1)
+        ]
 
     log_files = [str(Path(inp).with_suffix('.log')) for inp in input_files]
 
@@ -509,6 +572,7 @@ def _collect_and_effe(
     molcas_nprocs: int,
     restart: bool = False,
     seward_dir: str = "",
+    jobmix_path: str = "",
 ) -> Dict[str, Any]:
     """Wait for CASPT2 root jobs, extract couplings, run EFFE combine."""
     name = calc_params['name']
@@ -531,7 +595,8 @@ def _collect_and_effe(
         return {'name': name, 'job_number': job_num, 'n_roots': n_roots,
                 'combined_dir': combine_dir, 'combined_log': combined_log}
 
-    combined_inp = create_combined_input(coupling_data, calc_params, combine_dir, seward_dir=seward_dir)
+    combined_inp = create_combined_input(coupling_data, calc_params, combine_dir,
+                                         seward_dir=seward_dir, jobmix_path=jobmix_path)
     run_molcas(combined_inp, workdir_base, molcas_nprocs, inputs=[]).result()
     print(f"  EFFE done [{name}]: {combined_log}")
 
@@ -593,7 +658,8 @@ def main():
         singlet_config = min(spin_order, key=lambda b: b['spin'])
         seward_dir = os.path.abspath(f"{singlet_config['output_dir']}/rasscf")
 
-        pending = []  # (calc_params, mol_futures, combine_dir)
+        pending = []        # (calc_params, mol_futures, log_files, combine_dir)
+        jobiph_paths = []   # per-block jobiph, aligned with pending
 
         for i, spin_config in enumerate(spin_order):
             name = spin_config['name']
@@ -607,29 +673,30 @@ def main():
             )
 
             # Run RASSCF — blocks. Previously submitted CASPT2 jobs run in parallel on SLURM.
-            current_rasorb = _run_rasscf_for_block(
+            current_rasorb, jobiph = _run_rasscf_for_block(
                 spin_config, current_rasorb, xyz_content, workdir_base, molcas_nprocs,
                 restart=restart, seward_dir=rasscf_seward,
             )
 
             # Submit CASPT2 root jobs immediately — non-blocking.
             # They run on SLURM while the next spin's RASSCF executes.
-            # By the time SLURM executes these, singlet RASSCF has already created seward files.
+            # By the time SLURM executes these, singlet RASSCF has already created seward+JobIph.
             pending.append(
                 _launch_caspt2_jobs(
                     spin_config, current_rasorb, xyz_content, workdir_base, molcas_nprocs,
-                    restart=restart, seward_dir=seward_dir,
+                    restart=restart, seward_dir=seward_dir, jobmix_path=jobiph,
                 )
             )
+            jobiph_paths.append(jobiph)
 
         print(f"\n{'='*60}")
         print("All RASSCF complete. Collecting CASPT2 + assembling EFFE...")
         print(f"{'='*60}")
 
-        for calc_params, mol_futures, log_files, combine_dir in pending:
+        for (calc_params, mol_futures, log_files, combine_dir), jobiph in zip(pending, jobiph_paths):
             block_results.append(
                 _collect_and_effe(calc_params, mol_futures, log_files, combine_dir, workdir_base, molcas_nprocs,
-                                  restart=restart, seward_dir=seward_dir)
+                                  restart=restart, seward_dir=seward_dir, jobmix_path=jobiph)
             )
 
     else:
