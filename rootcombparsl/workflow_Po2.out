@@ -1,0 +1,51 @@
+==========================================
+Po2 EFFE MS-CASPT2 Workflow Starting
+Job ID: 13408524
+Working directory: /dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl
+Start time: Sun Mar 29 11:21:56 AM CEST 2026
+==========================================
+Activating virtual environment...
+Python: Python 3.11.3
+Parsl:  2026.03.23
+
+Starting Po2 EFFE workflow...
+
+============================================================
+Po2 EFFE: 3 blocks, 188 root jobs
+Mode: full RASSCF + pipelined CASPT2 [RESTART]
+============================================================
+
+Starting orbital: /dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE/tests/autocas/external_scf/Po2_scaling_test_final_casscf/VQZP/results_N25_rev/system_16.RasOrb
+
+=== RASSCF [singlet] spin=1, 28 roots ===
+  RASSCF [singlet] — skipping (RasOrb+JobIph exist)
+  Writing 28 input files [singlet] locally...
+  Restart: 28/28 roots already complete [singlet], submitting 0
+
+=== RASSCF [triplet] spin=3, 90 roots ===
+  RASSCF [triplet] — skipping (RasOrb+JobIph exist)
+  Writing 90 input files [triplet] locally...
+  Restart: 90/90 roots already complete [triplet], submitting 0
+
+=== RASSCF [quintet] spin=5, 70 roots ===
+  RASSCF [quintet] — skipping (RasOrb+JobIph exist)
+  Writing 70 input files [quintet] locally...
+  Restart: 0/70 roots already complete [quintet], submitting 70
+
+============================================================
+All RASSCF complete. Collecting CASPT2 + assembling EFFE...
+============================================================
+
+--- Waiting for 28 CASPT2 jobs [singlet] ---
+  All jobs done [singlet]. Extracting couplings...
+  Couplings extracted [singlet]. Running EFFE combine...
+  EFFE done [singlet]: /dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/singlet/combined/combined_effe.log
+
+--- Waiting for 90 CASPT2 jobs [triplet] ---
+  All jobs done [triplet]. Extracting couplings...
+  Couplings extracted [triplet]. Running EFFE combine...
+
+End time: Sun Mar 29 11:24:55 AM CEST 2026
+==========================================
+ERROR: Workflow failed (exit code 1)
+==========================================

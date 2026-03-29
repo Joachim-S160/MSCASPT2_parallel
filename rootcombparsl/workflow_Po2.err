@@ -1,0 +1,456 @@
+--- Logging error ---
+Traceback (most recent call last):
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1114, in emit
+    self.flush()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1094, in flush
+    self.stream.flush()
+OSError: [Errno 122] Disk quota exceeded
+Call stack:
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 995, in _bootstrap
+    self._bootstrap_inner()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 1038, in _bootstrap_inner
+    self.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 975, in run
+    self._target(*self._args, **self._kwargs)
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/thread.py", line 83, in _worker
+    work_item.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/process_loggers.py", line 26, in wrapped
+    r = func(*args, **kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 612, in _launch_if_ready_async
+    exec_fu = self.launch_task(task_record)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 698, in launch_task
+    exec_fu = executor.submit(function, task_record['resource_specification'], *args, **kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/executors/high_throughput/executor.py", line 714, in submit
+    return self.submit_payload(context, fn_buf)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/executors/high_throughput/executor.py", line 775, in submit_payload
+    self.outgoing_q.put(msg)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/executors/high_throughput/zmq_pipes.py", line 148, in put
+    logger.debug("Sending TasksOutgoing message")
+Message: 'Sending TasksOutgoing message'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1114, in emit
+    self.flush()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1094, in flush
+    self.stream.flush()
+OSError: [Errno 122] Disk quota exceeded
+Call stack:
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 995, in _bootstrap
+    self._bootstrap_inner()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 1038, in _bootstrap_inner
+    self.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 975, in run
+    self._target(*self._args, **self._kwargs)
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/thread.py", line 83, in _worker
+    work_item.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/process_loggers.py", line 26, in wrapped
+    r = func(*args, **kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 612, in _launch_if_ready_async
+    exec_fu = self.launch_task(task_record)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 698, in launch_task
+    exec_fu = executor.submit(function, task_record['resource_specification'], *args, **kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/executors/high_throughput/executor.py", line 714, in submit
+    return self.submit_payload(context, fn_buf)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/executors/high_throughput/executor.py", line 775, in submit_payload
+    self.outgoing_q.put(msg)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/executors/high_throughput/zmq_pipes.py", line 150, in put
+    logger.debug("Sent TasksOutgoing message")
+Message: 'Sent TasksOutgoing message'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1114, in emit
+    self.flush()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1094, in flush
+    self.stream.flush()
+OSError: [Errno 122] Disk quota exceeded
+Call stack:
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 995, in _bootstrap
+    self._bootstrap_inner()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 1038, in _bootstrap_inner
+    self.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 975, in run
+    self._target(*self._args, **self._kwargs)
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/thread.py", line 83, in _worker
+    work_item.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/process_loggers.py", line 26, in wrapped
+    r = func(*args, **kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 612, in _launch_if_ready_async
+    exec_fu = self.launch_task(task_record)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 703, in launch_task
+    logger.info(
+Message: 'Parsl task 71 try 1 launched on executor molcas_executor with executor id 73'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1114, in emit
+    self.flush()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1094, in flush
+    self.stream.flush()
+OSError: [Errno 122] Disk quota exceeded
+Call stack:
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 995, in _bootstrap
+    self._bootstrap_inner()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 1038, in _bootstrap_inner
+    self.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 975, in run
+    self._target(*self._args, **self._kwargs)
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/thread.py", line 83, in _worker
+    work_item.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/process_loggers.py", line 26, in wrapped
+    r = func(*args, **kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 612, in _launch_if_ready_async
+    exec_fu = self.launch_task(task_record)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 710, in launch_task
+    self._log_std_streams(task_record)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 1213, in _log_std_streams
+    log_std_stream("Standard out", task_record['app_fu'].stdout)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 1199, in log_std_stream
+    logger.info(f"{name} for task {tid} will not be redirected.")
+Message: 'Standard out for task 71 will not be redirected.'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1114, in emit
+    self.flush()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1094, in flush
+    self.stream.flush()
+OSError: [Errno 122] Disk quota exceeded
+Call stack:
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 995, in _bootstrap
+    self._bootstrap_inner()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 1038, in _bootstrap_inner
+    self.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 975, in run
+    self._target(*self._args, **self._kwargs)
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/thread.py", line 83, in _worker
+    work_item.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/process_loggers.py", line 26, in wrapped
+    r = func(*args, **kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 612, in _launch_if_ready_async
+    exec_fu = self.launch_task(task_record)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 710, in launch_task
+    self._log_std_streams(task_record)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 1214, in _log_std_streams
+    log_std_stream("Standard error", task_record['app_fu'].stderr)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 1199, in log_std_stream
+    logger.info(f"{name} for task {tid} will not be redirected.")
+Message: 'Standard error for task 71 will not be redirected.'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1114, in emit
+    self.flush()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1094, in flush
+    self.stream.flush()
+OSError: [Errno 122] Disk quota exceeded
+Call stack:
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 995, in _bootstrap
+    self._bootstrap_inner()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 1038, in _bootstrap_inner
+    self.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 975, in run
+    self._target(*self._args, **self._kwargs)
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/thread.py", line 83, in _worker
+    work_item.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/process_loggers.py", line 27, in wrapped
+    logger.debug("Normal ending for {}".format(name))
+Message: 'Normal ending for _launch_if_ready_async on thread Task-Launch_0'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1114, in emit
+    self.flush()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1094, in flush
+    self.stream.flush()
+OSError: [Errno 122] Disk quota exceeded
+Call stack:
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 995, in _bootstrap
+    self._bootstrap_inner()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 1038, in _bootstrap_inner
+    self.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 975, in run
+    self._target(*self._args, **self._kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/process_loggers.py", line 26, in wrapped
+    r = func(*args, **kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/executors/high_throughput/executor.py", line 497, in _result_queue_worker
+    msgs = self.incoming_q.get(timeout_ms=self.poll_period)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/executors/high_throughput/zmq_pipes.py", line 189, in get
+    logger.debug("Receiving ResultsIncoming multipart message")
+Message: 'Receiving ResultsIncoming multipart message'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1114, in emit
+    self.flush()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1094, in flush
+    self.stream.flush()
+OSError: [Errno 122] Disk quota exceeded
+Call stack:
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 995, in _bootstrap
+    self._bootstrap_inner()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 1038, in _bootstrap_inner
+    self.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 975, in run
+    self._target(*self._args, **self._kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/process_loggers.py", line 26, in wrapped
+    r = func(*args, **kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/executors/high_throughput/executor.py", line 530, in _result_queue_worker
+    task_fut.set_result(result)
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/_base.py", line 550, in set_result
+    self._invoke_callbacks()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/_base.py", line 340, in _invoke_callbacks
+    callback(self)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 324, in handle_exec_update
+    res = self._unwrap_remote_exception_wrapper(future)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 553, in _unwrap_remote_exception_wrapper
+    result.reraise()
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/app/errors.py", line 110, in reraise
+    logger.debug("Reraising exception of type {}".format(self.e_type))
+Message: "Reraising exception of type <class 'parsl.app.errors.BashExitFailure'>"
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 324, in handle_exec_update
+    res = self._unwrap_remote_exception_wrapper(future)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 553, in _unwrap_remote_exception_wrapper
+    result.reraise()
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/app/errors.py", line 114, in reraise
+    raise v
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/app/errors.py", line 138, in wrapper
+    return func(*args, **kwargs)
+    ^^^^^^^^^^^^^^^^^
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/app/bash.py", line 94, in remote_side_bash_executor
+    raise pe.BashExitFailure(func_name, proc.returncode)
+    ^^^^^^^^^^^^^^^^^
+parsl.app.errors.BashExitFailure: bash_app run_molcas failed with unix exit code 38
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1114, in emit
+    self.flush()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1094, in flush
+    self.stream.flush()
+OSError: [Errno 122] Disk quota exceeded
+Call stack:
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 995, in _bootstrap
+    self._bootstrap_inner()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 1038, in _bootstrap_inner
+    self.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 975, in run
+    self._target(*self._args, **self._kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/process_loggers.py", line 26, in wrapped
+    r = func(*args, **kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/executors/high_throughput/executor.py", line 530, in _result_queue_worker
+    task_fut.set_result(result)
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/_base.py", line 550, in set_result
+    self._invoke_callbacks()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/_base.py", line 340, in _invoke_callbacks
+    callback(self)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 327, in handle_exec_update
+    logger.info(f"Task {task_id} try {task_record['try_id']} failed with exception of type {type(e).__name__}")
+Message: 'Task 71 try 1 failed with exception of type BashExitFailure'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 324, in handle_exec_update
+    res = self._unwrap_remote_exception_wrapper(future)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 553, in _unwrap_remote_exception_wrapper
+    result.reraise()
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/app/errors.py", line 114, in reraise
+    raise v
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/app/errors.py", line 138, in wrapper
+    return func(*args, **kwargs)
+    ^^^^^^^^^^^^^^^^^
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/app/bash.py", line 94, in remote_side_bash_executor
+    raise pe.BashExitFailure(func_name, proc.returncode)
+    ^^^^^^^^^^^^^^^^^
+parsl.app.errors.BashExitFailure: bash_app run_molcas failed with unix exit code 38
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1114, in emit
+    self.flush()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1094, in flush
+    self.stream.flush()
+OSError: [Errno 122] Disk quota exceeded
+Call stack:
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 995, in _bootstrap
+    self._bootstrap_inner()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 1038, in _bootstrap_inner
+    self.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 975, in run
+    self._target(*self._args, **self._kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/process_loggers.py", line 26, in wrapped
+    r = func(*args, **kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/executors/high_throughput/executor.py", line 530, in _result_queue_worker
+    task_fut.set_result(result)
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/_base.py", line 550, in set_result
+    self._invoke_callbacks()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/_base.py", line 340, in _invoke_callbacks
+    callback(self)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 368, in handle_exec_update
+    logger.exception("Task {} failed after {} retry attempts".format(task_id,
+Message: 'Task 71 failed after 1 retry attempts'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 324, in handle_exec_update
+    res = self._unwrap_remote_exception_wrapper(future)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 553, in _unwrap_remote_exception_wrapper
+    result.reraise()
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/app/errors.py", line 114, in reraise
+    raise v
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/app/errors.py", line 138, in wrapper
+    return func(*args, **kwargs)
+    ^^^^^^^^^^^^^^^^^
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/app/bash.py", line 94, in remote_side_bash_executor
+    raise pe.BashExitFailure(func_name, proc.returncode)
+    ^^^^^^^^^^^^^^^^^
+parsl.app.errors.BashExitFailure: bash_app run_molcas failed with unix exit code 38
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1114, in emit
+    self.flush()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1094, in flush
+    self.stream.flush()
+OSError: [Errno 122] Disk quota exceeded
+Call stack:
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 995, in _bootstrap
+    self._bootstrap_inner()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 1038, in _bootstrap_inner
+    self.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 975, in run
+    self._target(*self._args, **self._kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/process_loggers.py", line 26, in wrapped
+    r = func(*args, **kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/executors/high_throughput/executor.py", line 530, in _result_queue_worker
+    task_fut.set_result(result)
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/_base.py", line 550, in set_result
+    self._invoke_callbacks()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/_base.py", line 340, in _invoke_callbacks
+    callback(self)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 370, in handle_exec_update
+    self._complete_task_exception(task_record, States.failed, e)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 522, in _complete_task_exception
+    logger.info(f"Task {task_record['id']} failed ({old_state.name} -> {new_state.name})")
+Message: 'Task 71 failed (launched -> failed)'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1114, in emit
+    self.flush()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1094, in flush
+    self.stream.flush()
+OSError: [Errno 122] Disk quota exceeded
+Call stack:
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 995, in _bootstrap
+    self._bootstrap_inner()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 1038, in _bootstrap_inner
+    self.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 975, in run
+    self._target(*self._args, **self._kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/process_loggers.py", line 26, in wrapped
+    r = func(*args, **kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/executors/high_throughput/executor.py", line 530, in _result_queue_worker
+    task_fut.set_result(result)
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/_base.py", line 550, in set_result
+    self._invoke_callbacks()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/_base.py", line 340, in _invoke_callbacks
+    callback(self)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 410, in handle_exec_update
+    self._log_std_streams(task_record)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 1213, in _log_std_streams
+    log_std_stream("Standard out", task_record['app_fu'].stdout)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 1199, in log_std_stream
+    logger.info(f"{name} for task {tid} will not be redirected.")
+Message: 'Standard out for task 71 will not be redirected.'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1114, in emit
+    self.flush()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1094, in flush
+    self.stream.flush()
+OSError: [Errno 122] Disk quota exceeded
+Call stack:
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 995, in _bootstrap
+    self._bootstrap_inner()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 1038, in _bootstrap_inner
+    self.run()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/threading.py", line 975, in run
+    self._target(*self._args, **self._kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/process_loggers.py", line 26, in wrapped
+    r = func(*args, **kwargs)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/executors/high_throughput/executor.py", line 530, in _result_queue_worker
+    task_fut.set_result(result)
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/_base.py", line 550, in set_result
+    self._invoke_callbacks()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/_base.py", line 340, in _invoke_callbacks
+    callback(self)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 410, in handle_exec_update
+    self._log_std_streams(task_record)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 1214, in _log_std_streams
+    log_std_stream("Standard error", task_record['app_fu'].stderr)
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 1199, in log_std_stream
+    logger.info(f"{name} for task {tid} will not be redirected.")
+Message: 'Standard error for task 71 will not be redirected.'
+Arguments: ()
+Traceback (most recent call last):
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/run_mscaspt2_Po2.py", line 771, in <module>
+    main()
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/run_mscaspt2_Po2.py", line 705, in main
+    _collect_and_effe(calc_params, mol_futures, log_files, combine_dir, workdir_base, molcas_nprocs,
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/run_mscaspt2_Po2.py", line 607, in _collect_and_effe
+    run_molcas(combined_inp, workdir_base, molcas_nprocs, inputs=[]).result()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/_base.py", line 456, in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/concurrent/futures/_base.py", line 401, in __get_result
+    raise self._exception
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 324, in handle_exec_update
+    res = self._unwrap_remote_exception_wrapper(future)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 553, in _unwrap_remote_exception_wrapper
+    result.reraise()
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/app/errors.py", line 114, in reraise
+    raise v
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/app/errors.py", line 138, in wrapper
+    return func(*args, **kwargs)
+^^^^^^^^^^^^^^^
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/app/bash.py", line 94, in remote_side_bash_executor
+    raise pe.BashExitFailure(func_name, proc.returncode)
+  ^^^^^^^^^^^^^^^^^
+parsl.app.errors.BashExitFailure: bash_app run_molcas failed with unix exit code 38
+--- Logging error ---
+Traceback (most recent call last):
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1114, in emit
+    self.flush()
+  File "/readonly/dodrio/apps/RHEL9/zen3-ib/software/Python/3.11.3-GCCcore-12.3.0/lib/python3.11/logging/__init__.py", line 1094, in flush
+    self.stream.flush()
+OSError: [Errno 122] Disk quota exceeded
+Call stack:
+  File "/dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/rootcombparsl/mscaspt2_venv/lib/python3.11/site-packages/parsl/dataflow/dflow.py", line 1090, in atexit_cleanup
+    logger.warning("Python is exiting with a DFK still running. "
+Message: 'Python is exiting with a DFK still running. You should call parsl.dfk().cleanup() before exiting to release any resources'
+Arguments: ()
