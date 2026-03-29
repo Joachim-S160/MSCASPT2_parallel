@@ -428,7 +428,12 @@ echo {out_rasorb}
 # ---------------------------------------------------------------------------
 
 def extract_couplings(log_file: str) -> Tuple[int, List[float]]:
-    """Parse 'Hamiltonian Effective Couplings' from a CASPT2(only=N) log."""
+    """Parse 'Hamiltonian Effective Couplings' from a CASPT2(only=N) log.
+
+    Uses the LAST occurrence of the header (final converged result) and only
+    matches coupling values in scientific notation (e.g. -3.069E+02), which
+    distinguishes them from timing lines that use fixed decimal (0.000).
+    """
     root_match = re.search(r'root(\d+)', Path(log_file).stem)
     if not root_match:
         raise ValueError(f"Cannot extract root index from: {Path(log_file).stem}")
@@ -437,14 +442,16 @@ def extract_couplings(log_file: str) -> Tuple[int, List[float]]:
     with open(log_file, 'r') as f:
         content = f.read()
 
-    match = re.search(
-        r'Hamiltonian Effective Couplings.*?\n((?:.*?<.*?\n)*)',
-        content, re.DOTALL | re.IGNORECASE
-    )
-    if not match:
+    header_pos = content.lower().rfind('hamiltonian effective couplings')
+    if header_pos < 0:
         raise ValueError(f"Could not find 'Hamiltonian Effective Couplings' in {log_file}")
 
-    couplings = [float(line.split()[-1]) for line in match.group(1).split('\n') if '<' in line]
+    section = content[header_pos:]
+    # Lines like: < N |  -3.06901782215526E+02
+    # Timing lines use fixed decimal (0.000) and are excluded by the [Ee] requirement.
+    couplings = [float(m) for m in re.findall(r'<[^|]+\|\s+(-?[\d.]+[Ee][+-]?\d+)', section)]
+    if not couplings:
+        raise ValueError(f"Could not extract coupling values from {log_file}")
     return (root_idx, couplings)
 
 
