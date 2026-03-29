@@ -55,6 +55,8 @@ def setup_parsl(cluster_config: Dict[str, Any]) -> None:
                                          cluster_config.get('walltime', '02:00:00'))
     rasscf_walltime = cluster_config.get('rasscf_walltime',
                                          cluster_config.get('walltime', '06:00:00'))
+    long_walltime = cluster_config.get('long_walltime',
+                                       cluster_config.get('walltime', '03:00:00'))
     sched_opts = cluster_config.get('scheduler_options', "#SBATCH --clusters=dodrio\n")
 
     def _worker_init(nprocs: int) -> str:
@@ -98,6 +100,21 @@ which pymolcas || echo "WARNING: pymolcas not found in PATH"
                     walltime=rasscf_walltime,
                     scheduler_options=sched_opts,
                     worker_init=_worker_init(rasscf_nprocs),
+                    launcher=SimpleLauncher(),
+                ),
+            ),
+            HighThroughputExecutor(
+                label="long_executor",
+                cores_per_worker=caspt2_nprocs,
+                provider=SlurmProvider(
+                    partition=cluster_config.get('partition', 'cpu_milan_rhel9'),
+                    account=cluster_config['account'],
+                    nodes_per_block=1,
+                    init_blocks=0,
+                    max_blocks=cluster_config.get('long_max_blocks', 10),
+                    walltime=long_walltime,
+                    scheduler_options=sched_opts,
+                    worker_init=_worker_init(caspt2_nprocs),
                     launcher=SimpleLauncher(),
                 ),
             ),
@@ -453,6 +470,30 @@ echo {out_rasorb}
 """
 
 
+@bash_app(executors=['long_executor'])
+def run_molcas_long(input_file: str, workdir_base: str, nprocs: int, inputs=[]) -> str:
+    """Submit one MOLCAS job to the long-walltime SLURM queue (EFFE, SO-RASSI)."""
+    import os
+    import time
+    from pathlib import Path
+
+    input_path = Path(input_file)
+    output_dir = str(input_path.parent)
+    job_name = input_path.stem
+    workdir_suffix = f"parsl_{os.getpid()}_{int(time.time())}_{job_name}"
+
+    return f"""
+set -e
+export MOLCAS_WORKDIR=${{TMPDIR:-{workdir_base}}}/{workdir_suffix}
+mkdir -p $MOLCAS_WORKDIR
+cd {output_dir}
+pymolcas -np {nprocs} {input_file} -f
+if grep -q "Happy landing" "{output_dir}/{job_name}.log" 2>/dev/null; then
+    rm -rf "$MOLCAS_WORKDIR"
+fi
+"""
+
+
 # ---------------------------------------------------------------------------
 # Local helpers (run in master process)
 # ---------------------------------------------------------------------------
@@ -660,7 +701,7 @@ def _collect_and_effe(
 
     combined_inp = create_combined_input(coupling_data, calc_params, combine_dir,
                                          seward_dir=seward_dir, jobmix_path=jobmix_path)
-    run_molcas(combined_inp, workdir_base, molcas_nprocs, inputs=[]).result()
+    run_molcas_long(combined_inp, workdir_base, molcas_nprocs, inputs=[]).result()
     print(f"  EFFE done [{name}]: {combined_log}")
 
     return {'name': name, 'job_number': job_num, 'n_roots': n_roots,
@@ -809,7 +850,7 @@ def main():
     if restart and _log_is_complete(rassi_log):
         print(f"Final SO-RASSI — skipping (log exists and complete)")
     else:
-        run_molcas(rassi_inp, workdir_base, molcas_nprocs, inputs=[]).result()
+        run_molcas_long(rassi_inp, workdir_base, molcas_nprocs, inputs=[]).result()
         print(f"Final SO-RASSI done: {rassi_log}")
 
     # Write reference weights table
@@ -835,6 +876,41 @@ def main():
     with open(rw_path, 'w') as f:
         f.write('\n'.join(lines) + '\n')
     print(f"Reference weights written: {rw_path}")
+
+    # Write timings table
+    def _fmt(wt_s: Optional[float]):
+        if wt_s is None:
+            return 'N/A', 'N/A', 'N/A'
+        return f"{wt_s:.2f}", f"{wt_s/60:.2f}", f"{wt_s/3600:.3f}"
+
+    timings = []
+
+    if full_rasscf:
+        for spin_config in sorted(config['calculations'], key=lambda b: b['spin']):
+            log = os.path.join(spin_config['output_dir'], 'rasscf', 'rasscf_full.log')
+            m = extract_metadata(log)
+            timings.append(('RASSCF', spin_config['name']) + _fmt(m['wall_time_s']))
+
+    for br in sorted(block_results, key=lambda x: x['spin']):
+        for r in sorted(br.get('root_meta', {}).keys()):
+            m = br['root_meta'][r]
+            timings.append(('CASPT2', f"{br['name']}_root{r}") + _fmt(m['wall_time_s']))
+
+    for br in sorted(block_results, key=lambda x: x['spin']):
+        m = extract_metadata(br['combined_log'])
+        timings.append(('EFFE', br['name']) + _fmt(m['wall_time_s']))
+
+    m = extract_metadata(rassi_log)
+    timings.append(('SO-RASSI', 'final') + _fmt(m['wall_time_s']))
+
+    col1 = max(len(r[0]) for r in timings)
+    col2 = max(len(r[1]) for r in timings)
+    t_path = "./timings.txt"
+    with open(t_path, 'w') as f:
+        f.write(f"{'step':<{col1+2}}  {'name':<{col2+2}}  {'wall_time_s':<14}  {'wall_time_min':<15}  wall_time_h\n")
+        for step, name, wts, wtm, wth in timings:
+            f.write(f"{step:<{col1+2}}  {name:<{col2+2}}  {wts:<14}  {wtm:<15}  {wth}\n")
+    print(f"Timings written: {t_path}")
 
     # Optional log cleanup
     if args.cleanup_logs and _log_is_complete(rassi_log):
