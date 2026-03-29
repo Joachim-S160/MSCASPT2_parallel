@@ -19,7 +19,7 @@ cluster:
   module: "autoCAS/3.0.0-iomkl-2023a"
   molcas_print: "verbose"
   molcas_mem: 6000                     # observed peak ~6 GB (sacct MaxRSS), set 6 GB as OpenMolcas limit
-  mem_per_node: 8192                   # SLURM reservation per node (MB): 6 GB compute + Python overhead
+  # mem_per_node not set — cluster assigns default memory; explicit value caused sbatch to reject jobs
   molcas_nprocs: 1
   omp_threads: 1
   workdir_base: "/dodrio/scratch/projects/starting_2025_097/molcas_workdirs"
