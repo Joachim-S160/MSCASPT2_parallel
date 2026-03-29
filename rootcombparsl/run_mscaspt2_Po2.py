@@ -390,6 +390,9 @@ export MOLCAS_WORKDIR={workdir}
 mkdir -p $MOLCAS_WORKDIR
 cd {output_dir}
 pymolcas -np {nprocs} {input_file} -f
+if grep -q "Happy landing" "{output_dir}/{job_name}.log" 2>/dev/null; then
+    rm -rf "$MOLCAS_WORKDIR"
+fi
 """
 
 
@@ -419,6 +422,9 @@ if [ ! -f {output_dir}/{job_name}.RasOrb ]; then
     exit 1
 fi
 cp {output_dir}/{job_name}.RasOrb {out_rasorb}
+if grep -q "Happy landing" "{output_dir}/{job_name}.log" 2>/dev/null; then
+    rm -rf "$MOLCAS_WORKDIR"
+fi
 echo {out_rasorb}
 """
 
@@ -453,6 +459,24 @@ def extract_couplings(log_file: str) -> Tuple[int, List[float]]:
     if not couplings:
         raise ValueError(f"Could not extract coupling values from {log_file}")
     return (root_idx, couplings)
+
+
+def extract_metadata(log_file: str) -> dict:
+    """Parse reference weight(s) and wall time from a CASPT2 log."""
+    result: Dict[str, Any] = {'ref_weights': [], 'wall_time_s': None}
+    try:
+        with open(log_file, 'r') as f:
+            content = f.read()
+        # "      Reference weight:           0.97178"
+        result['ref_weights'] = [float(m) for m in
+                                  re.findall(r'Reference weight:\s+([\d.]+)', content)]
+        # Last "    Timing: Wall=1.96 User=1.78 System=0.14"
+        timing = re.findall(r'Timing: Wall=([\d.]+)', content)
+        if timing:
+            result['wall_time_s'] = float(timing[-1])
+    except (OSError, ValueError):
+        pass
+    return result
 
 
 def _log_is_complete(log_path: str) -> bool:
@@ -595,12 +619,19 @@ def _collect_and_effe(
     coupling_data = [extract_couplings(log) for log in log_files]
     print(f"  Couplings extracted [{name}]. Running EFFE combine...")
 
+    root_meta: Dict[int, Any] = {}
+    for log in log_files:
+        root_match = re.search(r'root(\d+)', Path(log).stem)
+        r = int(root_match.group(1)) if root_match else -1
+        root_meta[r] = extract_metadata(log)
+
     job_file = os.path.join(combine_dir, f"JOB{job_num:03d}")
     combined_log = str(Path(combine_dir) / 'combined_effe.log')
     if restart and os.path.isfile(job_file):
         print(f"  EFFE [{name}] — skipping (JOB{job_num:03d} exists)")
         return {'name': name, 'job_number': job_num, 'n_roots': n_roots,
-                'combined_dir': combine_dir, 'combined_log': combined_log}
+                'combined_dir': combine_dir, 'combined_log': combined_log,
+                'spin': calc_params['spin'], 'root_meta': root_meta}
 
     combined_inp = create_combined_input(coupling_data, calc_params, combine_dir,
                                          seward_dir=seward_dir, jobmix_path=jobmix_path)
@@ -608,7 +639,8 @@ def _collect_and_effe(
     print(f"  EFFE done [{name}]: {combined_log}")
 
     return {'name': name, 'job_number': job_num, 'n_roots': n_roots,
-            'combined_dir': combine_dir, 'combined_log': combined_log}
+            'combined_dir': combine_dir, 'combined_log': combined_log,
+            'spin': calc_params['spin'], 'root_meta': root_meta}
 
 
 # ---------------------------------------------------------------------------
@@ -627,6 +659,10 @@ def main():
         '--restart', action='store_true',
         help='Resume a partially completed run: skip steps whose outputs already exist '
              '(RasOrb files, root CASPT2 logs with "Happy landing", JOB/SO-RASSI files).'
+    )
+    parser.add_argument(
+        '--cleanup-logs', action='store_true',
+        help='After successful SO-RASSI, delete individual root CASPT2 log files to free disk.'
     )
     args = parser.parse_args()
     full_rasscf = not args.no_rasscf
@@ -749,6 +785,41 @@ def main():
     else:
         run_molcas(rassi_inp, workdir_base, molcas_nprocs, inputs=[]).result()
         print(f"Final SO-RASSI done: {rassi_log}")
+
+    # Write reference weights table
+    ref_by_spin: Dict[int, Dict[int, str]] = {}
+    for br in block_results:
+        spin = br['spin']
+        ref_by_spin[spin] = {}
+        for r, m in br.get('root_meta', {}).items():
+            rw = m['ref_weights']
+            ref_by_spin[spin][r] = f"{rw[0]:.5f}" if rw else "N/A"
+
+    max_roots = max(br['n_roots'] for br in block_results)
+    spin_order_out = [1, 3, 5]
+    header = f"{'root':<6}  {'singlet_ref_weight':<20}  {'triplet_ref_weight':<20}  {'quintet_ref_weight':<20}"
+    lines = [header]
+    for r in range(1, max_roots + 1):
+        row = f"{r:<6}"
+        for spin in spin_order_out:
+            val = ref_by_spin.get(spin, {}).get(r, 'N/A')
+            row += f"  {val:<20}"
+        lines.append(row)
+    rw_path = "./reference_weights.txt"
+    with open(rw_path, 'w') as f:
+        f.write('\n'.join(lines) + '\n')
+    print(f"Reference weights written: {rw_path}")
+
+    # Optional log cleanup
+    if args.cleanup_logs and _log_is_complete(rassi_log):
+        removed = 0
+        for br in block_results:
+            for r in range(1, br['n_roots'] + 1):
+                log = os.path.join(os.path.dirname(br['combined_dir']), f"root{r}", f"root{r}.log")
+                if _log_is_complete(log):
+                    os.remove(log)
+                    removed += 1
+        print(f"Cleaned up {removed} root CASPT2 logs.")
 
     print(f"\n{'='*60}")
     print("PO2 EFFE WORKFLOW COMPLETED")
