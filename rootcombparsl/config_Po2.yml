@@ -9,9 +9,9 @@
 cluster:
   account: "starting_2025_097"         # billing account for SLURM jobs
   partition: "cpu_milan_rhel9"
-  caspt2_walltime: "00:30:00"          # CASPT2 roots — ~30s actual, 30 min gives 60× margin
-  rasscf_walltime: "02:00:00"          # RASSCF orbital optimisation (~75 min max observed)
-  long_walltime:   "03:00:00"          # EFFE combine + SO-RASSI
+  caspt2_walltime: "00:30:00"          # CASPT2 roots — max observed ~18 min (triplet)
+  rasscf_walltime: "00:45:00"          # RASSCF orbital optimisation (max observed ~8 min)
+  long_walltime:   "02:00:00"          # EFFE combine + SO-RASSI (SO-RASSI observed ~34 min)
   rasscf_nprocs: 1                     # serial for now; set to 4 + switch module for MPI benchmark
   rasscf_max_blocks: 3                 # at most 3 RASSCF jobs ever (one per spin block)
   max_blocks: 100                      # 90 triplet roots + buffer, run in parallel

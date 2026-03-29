@@ -2,8 +2,8 @@
 #PBS -N Po2_EFFE_workflow
 #PBS -o workflow_Po2.out
 #PBS -e workflow_Po2.err
-#PBS -l walltime=48:00:00
-#PBS -l mem=8gb
+#PBS -l walltime=02:30:00
+#PBS -l mem=1gb
 #PBS -l nodes=1:ppn=1
 #PBS -m be -M joachim.scheerlinck@ugent.be
 #PBS -A starting_2025_097
