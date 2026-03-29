@@ -49,34 +49,58 @@ def load_config(config_file: str) -> Dict[str, Any]:
 
 
 def setup_parsl(cluster_config: Dict[str, Any]) -> None:
+    caspt2_nprocs = cluster_config.get('molcas_nprocs', 1)
+    rasscf_nprocs = cluster_config.get('rasscf_nprocs', 1)
+    caspt2_walltime = cluster_config.get('caspt2_walltime',
+                                         cluster_config.get('walltime', '02:00:00'))
+    rasscf_walltime = cluster_config.get('rasscf_walltime',
+                                         cluster_config.get('walltime', '06:00:00'))
+    sched_opts = cluster_config.get('scheduler_options', "#SBATCH --clusters=dodrio\n")
+
+    def _worker_init(nprocs: int) -> str:
+        return f"""
+module purge
+module load {cluster_config.get('module', 'autoCAS/3.0.0-iomkl-2023a')}
+export MOLCAS_PRINT={cluster_config.get('molcas_print', 'verbose')}
+export MOLCAS_MEM={cluster_config.get('molcas_mem', 20000)}
+export MOLCAS_NPROCS={nprocs}
+export OMP_NUM_THREADS={cluster_config.get('omp_threads', 1)}
+ulimit -s unlimited
+which pymolcas || echo "WARNING: pymolcas not found in PATH"
+"""
+
     config = Config(
         executors=[
             HighThroughputExecutor(
-                label="molcas_executor",
-                cores_per_worker=1,
+                label="caspt2_executor",
+                cores_per_worker=caspt2_nprocs,
                 provider=SlurmProvider(
                     partition=cluster_config.get('partition', 'cpu_milan_rhel9'),
                     account=cluster_config['account'],
                     nodes_per_block=1,
                     init_blocks=cluster_config.get('init_blocks', 0),
-                    max_blocks=cluster_config.get('max_blocks', 220),
-                    walltime=cluster_config.get('walltime', '02:00:00'),
-                    scheduler_options=cluster_config.get(
-                        'scheduler_options', "#SBATCH --clusters=dodrio\n"
-                    ),
-                    worker_init=f"""
-module purge
-module load {cluster_config.get('module', 'autoCAS/3.0.0-iomkl-2023a')}
-export MOLCAS_PRINT={cluster_config.get('molcas_print', 'verbose')}
-export MOLCAS_MEM={cluster_config.get('molcas_mem', 20000)}
-export MOLCAS_NPROCS={cluster_config.get('molcas_nprocs', 1)}
-export OMP_NUM_THREADS={cluster_config.get('omp_threads', 1)}
-ulimit -s unlimited
-which pymolcas || echo "WARNING: pymolcas not found in PATH"
-""",
+                    max_blocks=cluster_config.get('max_blocks', 100),
+                    walltime=caspt2_walltime,
+                    scheduler_options=sched_opts,
+                    worker_init=_worker_init(caspt2_nprocs),
                     launcher=SimpleLauncher(),
                 ),
-            )
+            ),
+            HighThroughputExecutor(
+                label="rasscf_executor",
+                cores_per_worker=rasscf_nprocs,
+                provider=SlurmProvider(
+                    partition=cluster_config.get('partition', 'cpu_milan_rhel9'),
+                    account=cluster_config['account'],
+                    nodes_per_block=1,
+                    init_blocks=0,
+                    max_blocks=cluster_config.get('rasscf_max_blocks', 3),
+                    walltime=rasscf_walltime,
+                    scheduler_options=sched_opts,
+                    worker_init=_worker_init(rasscf_nprocs),
+                    launcher=SimpleLauncher(),
+                ),
+            ),
         ],
         strategy='htex_auto_scale',
         retries=1,
@@ -372,7 +396,7 @@ End of Input
 # SLURM jobs — only actual MOLCAS runs go through Parsl
 # ---------------------------------------------------------------------------
 
-@bash_app
+@bash_app(executors=['caspt2_executor'])
 def run_molcas(input_file: str, workdir_base: str, nprocs: int, inputs=[]) -> str:
     """Submit one MOLCAS job to SLURM. Returns exit code (int) via .result()."""
     import os
@@ -396,7 +420,7 @@ fi
 """
 
 
-@bash_app
+@bash_app(executors=['rasscf_executor'])
 def run_rasscf_and_copy_orb(
     input_file: str, workdir_base: str, nprocs: int, out_rasorb: str, inputs=[]
 ) -> str:
@@ -520,6 +544,7 @@ def _run_rasscf_for_block(
     molcas_nprocs: int,
     restart: bool = False,
     seward_dir: str = "",
+    rasscf_nprocs: int = 1,
 ) -> Tuple[str, str]:
     """Run full RASSCF for one spin block. Blocks until done.
     Returns (rasorb_path, jobiph_path)."""
@@ -535,7 +560,7 @@ def _run_rasscf_for_block(
     calc_params = _make_calc_params(spin_config, xyz_content, start_rasorb)
     inp = create_rasscf_input(calc_params, start_rasorb, rasscf_dir, seward_dir=seward_dir)
     run_rasscf_and_copy_orb(
-        inp, workdir_base, molcas_nprocs, out_rasorb, inputs=[]
+        inp, workdir_base, rasscf_nprocs, out_rasorb, inputs=[]
     ).result()  # blocks; raises BashExitFailure on non-zero exit
     print(f"  RASSCF [{name}] complete -> {out_rasorb}")
     return out_rasorb, out_jobiph
@@ -676,6 +701,7 @@ def main():
 
     workdir_base = config['cluster']['workdir_base']
     molcas_nprocs = config['cluster'].get('molcas_nprocs', 1)
+    rasscf_nprocs = config['cluster'].get('rasscf_nprocs', molcas_nprocs)
     basis = config['calculations'][0]['basis']
     n_blocks = len(config['calculations'])
     total_roots = sum(c['n_roots'] for c in config['calculations'])
@@ -718,7 +744,7 @@ def main():
             # Run RASSCF — blocks. Previously submitted CASPT2 jobs run in parallel on SLURM.
             current_rasorb, jobiph = _run_rasscf_for_block(
                 spin_config, current_rasorb, xyz_content, workdir_base, molcas_nprocs,
-                restart=restart, seward_dir=rasscf_seward,
+                restart=restart, seward_dir=rasscf_seward, rasscf_nprocs=rasscf_nprocs,
             )
 
             # Submit CASPT2 root jobs immediately — non-blocking.

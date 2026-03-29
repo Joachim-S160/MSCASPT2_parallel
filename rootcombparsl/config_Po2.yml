@@ -9,7 +9,10 @@
 cluster:
   account: "starting_2025_097"         # billing account for SLURM jobs
   partition: "cpu_milan_rhel9"
-  walltime: "04:00:00"                 # singlet RASSCF needs Seward (~35 min) + opt; root jobs finish well within 1h after Seward fix
+  caspt2_walltime: "02:00:00"          # CASPT2/EFFE/RASSI — no Seward, no RASSCF, much faster
+  rasscf_walltime: "06:00:00"          # RASSCF orbital optimisation (all roots, full convergence)
+  rasscf_nprocs: 1                     # serial for now; set to 4 + switch module for MPI benchmark
+  rasscf_max_blocks: 3                 # at most 3 RASSCF jobs ever (one per spin block)
   max_blocks: 100                      # 90 triplet roots + buffer, run in parallel
   init_blocks: 0
   module: "autoCAS/3.0.0-iomkl-2023a"
