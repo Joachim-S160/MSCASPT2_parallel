@@ -7,14 +7,14 @@
 # JOB file order for SO-RASSI:      quintet=JOB001, triplet=JOB002, singlet=JOB003
 
 cluster:
-  account: "starting_2025_097"         # billing account for SLURM jobs
+  account: "2025_046"                  # billing account (using up 2025_046 before it ends)
   partition: "cpu_milan_rhel9"
   caspt2_walltime: "00:30:00"          # CASPT2 roots — max observed ~18 min (triplet)
   rasscf_walltime: "00:45:00"          # RASSCF orbital optimisation (max observed ~8 min)
   long_walltime:   "02:00:00"          # EFFE combine + SO-RASSI (SO-RASSI observed ~34 min)
   rasscf_nprocs: 1                     # serial for now; set to 4 + switch module for MPI benchmark
   rasscf_max_blocks: 3                 # at most 3 RASSCF jobs ever (one per spin block)
-  max_blocks: 100                      # 90 triplet roots + buffer, run in parallel
+  max_blocks: 30                       # 30 parallel CASPT2 workers (188 roots in ~7 passes)
   init_blocks: 0
   module: "autoCAS/3.0.0-iomkl-2023a"
   molcas_print: "verbose"
