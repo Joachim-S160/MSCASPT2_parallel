@@ -1,0 +1,106 @@
+* =============================================================================
+* N2 EFFE validation — Run B phase 1
+* CAS(6,6) / cc-pVDZ / 8 singlet roots / NoSym
+* CASPT2: ONLY=1 ... ONLY=8  →  8 sequential per-root CASPT2 blocks
+*
+* Each block computes root N's row of H_eff (couplings to all other roots).
+* JobIph is saved after RASSCF and reused by all 8 CASPT2 blocks.
+* assemble_effe.py parses the couplings from this log and writes input_B_effe.
+* =============================================================================
+
+&GATEWAY
+  Coord= n2.xyz
+  Basis= cc-pVDZ
+  Group= NoSym
+
+&SEWARD
+  Cholesky
+End of Input
+
+&RASSCF
+  Symmetry= 1
+  Spin=     1
+  CIROOT=   8 8 1
+  nActEl=   6 0 0
+  Inactive= 4
+  Ras2=     6
+  THRS=     1.0e-08 1.0e-04 1.0e-04
+  Levshft=  0.5
+  Iteration= 200 50
+  CIMX=     200
+  SDAV=     500
+End of Input
+
+>>COPY $Project.JobIph $CurrDir/rasscf_B.JobIph
+
+* --- Root 1 ---
+&CASPT2
+  MAXITER=  300
+  Frozen=   2
+  Multistate= all
+  Imaginary Shift= 0.25
+  Only= 1
+End of Input
+
+* --- Root 2 ---
+&CASPT2
+  MAXITER=  300
+  Frozen=   2
+  Multistate= all
+  Imaginary Shift= 0.25
+  Only= 2
+End of Input
+
+* --- Root 3 ---
+&CASPT2
+  MAXITER=  300
+  Frozen=   2
+  Multistate= all
+  Imaginary Shift= 0.25
+  Only= 3
+End of Input
+
+* --- Root 4 ---
+&CASPT2
+  MAXITER=  300
+  Frozen=   2
+  Multistate= all
+  Imaginary Shift= 0.25
+  Only= 4
+End of Input
+
+* --- Root 5 ---
+&CASPT2
+  MAXITER=  300
+  Frozen=   2
+  Multistate= all
+  Imaginary Shift= 0.25
+  Only= 5
+End of Input
+
+* --- Root 6 ---
+&CASPT2
+  MAXITER=  300
+  Frozen=   2
+  Multistate= all
+  Imaginary Shift= 0.25
+  Only= 6
+End of Input
+
+* --- Root 7 ---
+&CASPT2
+  MAXITER=  300
+  Frozen=   2
+  Multistate= all
+  Imaginary Shift= 0.25
+  Only= 7
+End of Input
+
+* --- Root 8 ---
+&CASPT2
+  MAXITER=  300
+  Frozen=   2
+  Multistate= all
+  Imaginary Shift= 0.25
+  Only= 8
+End of Input
