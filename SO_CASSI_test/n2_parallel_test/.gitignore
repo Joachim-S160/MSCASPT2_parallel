@@ -1,0 +1,17 @@
+# OpenMolcas work directories
+mw_*/
+
+# Shared generated files (Seward, JobIph)
+shared/
+
+# Log files
+*.log
+
+# Generated orbital and HDF5 files
+*.RasOrb
+*.RasOrb.*
+*.rasscf.h5
+*.ScfOrb
+
+# Generated EFFE input (produced by assemble_effe.py)
+input_*_effe.input

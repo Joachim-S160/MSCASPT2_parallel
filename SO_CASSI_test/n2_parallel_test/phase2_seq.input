@@ -1,0 +1,36 @@
+* =============================================================================
+* N2 parallel CASPT2 test — Phase 2: sequential reference
+* Injects shared files (no &GATEWAY, no &SEWARD, no &RASSCF).
+* Runs CASPT2(Only=1) then CASPT2(Only=2) in a single pymolcas call.
+* Used to verify that file injection works and to produce reference coupling rows.
+* =============================================================================
+
+>>COPY $CurrDir/shared/seward.RunFile $WorkDir/$Project.RunFile
+>>COPY $CurrDir/shared/seward.OneInt  $WorkDir/$Project.OneInt
+>>COPY $CurrDir/shared/seward.SymInfo $WorkDir/$Project.SymInfo
+>>COPY $CurrDir/shared/seward.NqGrid  $WorkDir/$Project.NqGrid
+>>COPY $CurrDir/shared/seward.ChVec1  $WorkDir/$Project.ChVec1
+>>COPY $CurrDir/shared/seward.ChSel1  $WorkDir/$Project.ChSel1
+>>COPY $CurrDir/shared/seward.ChRed   $WorkDir/$Project.ChRed
+>>COPY $CurrDir/shared/seward.ChDiag  $WorkDir/$Project.ChDiag
+>>COPY $CurrDir/shared/seward.ChMap   $WorkDir/$Project.ChMap
+>>COPY $CurrDir/shared/seward.ChRst   $WorkDir/$Project.ChRst
+>>COPY $CurrDir/shared/rasscf.JobIph  $WorkDir/$Project.JobIph
+
+* --- Root 1 ---
+&CASPT2
+  MAXITER=  300
+  Frozen=   2
+  Multistate= all
+  Imaginary Shift= 0.25
+  Only= 1
+End of Input
+
+* --- Root 2 ---
+&CASPT2
+  MAXITER=  300
+  Frozen=   2
+  Multistate= all
+  Imaginary Shift= 0.25
+  Only= 2
+End of Input

@@ -1,0 +1,25 @@
+* =============================================================================
+* N2 parallel CASPT2 test — Phase 2 worker: Only=2
+* Injects shared files (no &GATEWAY, no &SEWARD, no &RASSCF).
+* Run in parallel with phase2_only1.input using a separate MOLCAS_WORKDIR.
+* =============================================================================
+
+>>COPY $CurrDir/shared/seward.RunFile $WorkDir/$Project.RunFile
+>>COPY $CurrDir/shared/seward.OneInt  $WorkDir/$Project.OneInt
+>>COPY $CurrDir/shared/seward.SymInfo $WorkDir/$Project.SymInfo
+>>COPY $CurrDir/shared/seward.NqGrid  $WorkDir/$Project.NqGrid
+>>COPY $CurrDir/shared/seward.ChVec1  $WorkDir/$Project.ChVec1
+>>COPY $CurrDir/shared/seward.ChSel1  $WorkDir/$Project.ChSel1
+>>COPY $CurrDir/shared/seward.ChRed   $WorkDir/$Project.ChRed
+>>COPY $CurrDir/shared/seward.ChDiag  $WorkDir/$Project.ChDiag
+>>COPY $CurrDir/shared/seward.ChMap   $WorkDir/$Project.ChMap
+>>COPY $CurrDir/shared/seward.ChRst   $WorkDir/$Project.ChRst
+>>COPY $CurrDir/shared/rasscf.JobIph  $WorkDir/$Project.JobIph
+
+&CASPT2
+  MAXITER=  300
+  Frozen=   2
+  Multistate= all
+  Imaginary Shift= 0.25
+  Only= 2
+End of Input
