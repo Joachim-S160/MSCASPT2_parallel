@@ -1,0 +1,42 @@
+* =============================================================================
+* N2 EFFE validation — Run A (reference)
+* CAS(6,6) / cc-pVDZ / 8 singlet roots / NoSym
+* CASPT2: Multistate=all  →  standard sequential MS-CASPT2
+* =============================================================================
+
+&GATEWAY
+  Coord= n2.xyz
+  Basis= cc-pVDZ
+  Group= NoSym
+
+&SEWARD
+  Cholesky
+End of Input
+
+&RASSCF
+  Symmetry= 1
+  Spin=     1
+  CIROOT=   8 8 1
+  nActEl=   6 0 0
+  Inactive= 4
+  Ras2=     6
+  THRS=     1.0e-08 1.0e-04 1.0e-04
+  Levshft=  0.5
+  Iteration= 200 50
+  CIMX=     200
+  SDAV=     500
+End of Input
+
+&CASPT2
+  MAXITER=  300
+  Frozen=   2
+  Multistate= all
+  Imaginary Shift= 0.25
+End of Input
+
+>>COPY $Project.JobMix $CurrDir/JobMix.A
+
+>>COPY $CurrDir/JobMix.A JOB001
+&RASSI
+  Nr of JobIphs= 1 all
+End of Input
