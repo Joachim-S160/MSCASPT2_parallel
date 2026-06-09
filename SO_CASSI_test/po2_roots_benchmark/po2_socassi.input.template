@@ -1,0 +1,134 @@
+* =============================================================================
+* Po2 SO-CASSI Roots Benchmark Input
+* Cascade: Quintet → Triplet → Singlet
+* Start:   RHF SCF  (self-contained — no external RasOrb)
+* CASPT2:  Multistate= all  (baseline; minimum Cholesky reads)
+* RASSI:   HEFF (full MS-CASPT2 effective Hamiltonian)
+*
+* Placeholders filled by run_baseline.pbs:
+*   INACTIVE_PLACEHOLDER    inactive orbitals
+*   RAS2_PLACEHOLDER        active orbitals (n_orb)
+*   NACT_PLACEHOLDER        active electrons (n_elec)
+*   FROZEN_PLACEHOLDER      frozen orbitals for CASPT2
+*   CIROOT_Q_PLACEHOLDER    quintet CIROOT
+*   CIROOT_T_PLACEHOLDER    triplet CIROOT
+*   CIROOT_S_PLACEHOLDER    singlet CIROOT
+*   IMAGINARY_PLACEHOLDER   imaginary shift for CASPT2
+*   LEVSHIFT_PLACEHOLDER    level shift for RASSCF
+* =============================================================================
+
+>> export MOLCAS_PRINT=verbose
+>> export MOLCAS_MOLDEN=ON
+
+&GATEWAY
+  Coord= po2_eq.xyz
+  Basis= ANO-RCC-VQZP
+  Group= NoSym
+
+&SEWARD
+  Cholesky
+End of Input
+
+&SCF
+End of Input
+
+* =============================================================================
+* QUINTET: start from RHF SCF orbitals
+* =============================================================================
+&RASSCF
+  Symmetry= 1
+  Spin=     5
+  CIROOT=   CIROOT_Q_PLACEHOLDER CIROOT_Q_PLACEHOLDER 1
+  nActEl=   NACT_PLACEHOLDER 0 0
+  Inactive= INACTIVE_PLACEHOLDER
+  Ras2=     RAS2_PLACEHOLDER
+  THRS=     1.0e-08 1.0e-04 1.0e-04
+  Levshft=  LEVSHIFT_PLACEHOLDER
+  Iteration= 200 50
+  CIMX=     200
+  SDAV=     500
+End of Input
+
+&CASPT2
+  MAXITER=  300
+  Frozen=   FROZEN_PLACEHOLDER
+  Multistate= all
+  Imaginary Shift= IMAGINARY_PLACEHOLDER
+End of Input
+
+>>COPY $Project.JobMix $CurrDir/JobMix.S5
+>>COPY $Project.RasOrb $CurrDir/Quintet.RasOrb
+
+* =============================================================================
+* TRIPLET: start from quintet-optimised orbitals
+* =============================================================================
+&RASSCF
+  FILEORB=  $CurrDir/Quintet.RasOrb
+  Symmetry= 1
+  Spin=     3
+  CIROOT=   CIROOT_T_PLACEHOLDER CIROOT_T_PLACEHOLDER 1
+  nActEl=   NACT_PLACEHOLDER 0 0
+  Inactive= INACTIVE_PLACEHOLDER
+  Ras2=     RAS2_PLACEHOLDER
+  THRS=     1.0e-08 1.0e-04 1.0e-04
+  Levshft=  LEVSHIFT_PLACEHOLDER
+  Iteration= 200 50
+  CIMX=     200
+  SDAV=     500
+End of Input
+
+&CASPT2
+  MAXITER=  300
+  Frozen=   FROZEN_PLACEHOLDER
+  Multistate= all
+  Imaginary Shift= IMAGINARY_PLACEHOLDER
+End of Input
+
+>>COPY $Project.JobMix $CurrDir/JobMix.S3
+>>COPY $Project.RasOrb $CurrDir/Triplet.RasOrb
+
+* =============================================================================
+* SINGLET: start from triplet-optimised orbitals
+* =============================================================================
+&RASSCF
+  FILEORB=  $CurrDir/Triplet.RasOrb
+  Symmetry= 1
+  Spin=     1
+  CIROOT=   CIROOT_S_PLACEHOLDER CIROOT_S_PLACEHOLDER 1
+  nActEl=   NACT_PLACEHOLDER 0 0
+  Inactive= INACTIVE_PLACEHOLDER
+  Ras2=     RAS2_PLACEHOLDER
+  THRS=     1.0e-08 1.0e-04 1.0e-04
+  Levshft=  LEVSHIFT_PLACEHOLDER
+  Iteration= 200 50
+  CIMX=     200
+  SDAV=     500
+End of Input
+
+&CASPT2
+  MAXITER=  300
+  Frozen=   FROZEN_PLACEHOLDER
+  Multistate= all
+  Imaginary Shift= IMAGINARY_PLACEHOLDER
+End of Input
+
+>>COPY $Project.JobMix $CurrDir/JobMix.S1
+>>COPY $Project.RasOrb $CurrDir/Singlet.RasOrb
+
+* =============================================================================
+* SO-CASSI: combine all spin states
+* =============================================================================
+>>COPY $CurrDir/JobMix.S5 JOB001
+>>COPY $CurrDir/JobMix.S3 JOB002
+>>COPY $CurrDir/JobMix.S1 JOB003
+
+&RASSI
+  Nr of JobIphs = 3 all
+  Spin Orbit
+  HEFF
+* HEFF: full MS-CASPT2 effective Hamiltonian from JobMix.
+* jobmatch=false (Q+T+S have different spin) → HEFF fires automatically,
+* but explicit keyword is safer across OpenMolcas versions.
+* Ejob is NOT used: EJOB discards MS-CASPT2 off-diagonal couplings.
+  Omega
+End of Input

@@ -1,0 +1,140 @@
+#!/bin/bash
+#PBS -A starting_2025_097
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=23:58:00
+#PBS -l mem=16gb
+#PBS -m be
+#PBS -M joachim.scheerlinck@ugent.be
+#
+# Po2 SO-CASSI baseline benchmark — self-contained, starts from RHF SCF.
+#
+# No external RasOrb required. Geometry bundled as po2_eq.xyz (R=2.797 Å).
+# Measures per-step wall time and peak memory for the production-equivalent
+# workflow (Multistate=all, Q→T→S cascade, HEFF).
+#
+# Output files (all in PBS_O_WORKDIR after the job):
+#   po2_benchmark.log         — full OpenMolcas log
+#   time_output.txt           — /usr/bin/time -v peak-memory stats
+#   benchmark_metrics.json    — structured metrics (timing, memory, ref weights)
+#   benchmark_summary.txt     — human-readable table for Tier-1 proposal
+#
+# To run:
+#   cd SO_CASSI_test/po2_roots_benchmark/
+#   qsub run_baseline.pbs
+
+BENCH_DIR="${PBS_O_WORKDIR}"
+source "${BENCH_DIR}/config.sh"
+source "${INSTALL_DIR}/setup_hortense.sh"
+
+export MOLCAS_MEM="${MOLCAS_MEM}"
+export MOLCAS_PRINT=verbose
+export MOLCAS_MOLDEN=ON
+export OMP_NUM_THREADS="${OMP_NUM_THREADS}"
+
+cd "${BENCH_DIR}"
+
+echo "========================================"
+echo "  Po2 SO-CASSI Roots Benchmark"
+echo "========================================"
+echo "Start:      $(date)"
+echo "Host:       $(hostname)"
+echo "PBS_JOBID:  ${PBS_JOBID}"
+echo "CAS:        CAS(${CAS_N_ELEC},${CAS_N_ORB})"
+echo "CIROOT:     Q=${CIROOT_Q} T=${CIROOT_T} S=${CIROOT_S}"
+echo "MOLCAS_MEM: ${MOLCAS_MEM} MB"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Set up working directory (node-local to keep Cholesky off Lustre)
+# ---------------------------------------------------------------------------
+WORK_DIR="${TMPDIR:-${BENCH_DIR}/molcas_tmp}/benchmark_${PBS_JOBID}"
+rm -rf "${WORK_DIR}"
+mkdir -p "${WORK_DIR}"
+export MOLCAS_WORKDIR="${WORK_DIR}"
+
+cp "${BENCH_DIR}/po2_eq.xyz" "${WORK_DIR}/po2_eq.xyz"
+
+# ---------------------------------------------------------------------------
+# Fill input template
+# ---------------------------------------------------------------------------
+FILLED_INPUT="${WORK_DIR}/po2_socassi_benchmark.input"
+sed \
+    -e "s/INACTIVE_PLACEHOLDER/${INACTIVE}/g" \
+    -e "s/RAS2_PLACEHOLDER/${CAS_N_ORB}/g" \
+    -e "s/NACT_PLACEHOLDER/${CAS_N_ELEC}/g" \
+    -e "s/FROZEN_PLACEHOLDER/${FROZEN}/g" \
+    -e "s/CIROOT_Q_PLACEHOLDER/${CIROOT_Q}/g" \
+    -e "s/CIROOT_T_PLACEHOLDER/${CIROOT_T}/g" \
+    -e "s/CIROOT_S_PLACEHOLDER/${CIROOT_S}/g" \
+    -e "s/IMAGINARY_PLACEHOLDER/${IMAGINARY_SHIFT}/g" \
+    -e "s/LEVSHIFT_PLACEHOLDER/${LEVSHIFT}/g" \
+    "${BENCH_DIR}/po2_socassi.input.template" \
+    > "${FILLED_INPUT}"
+
+LOGFILE="${BENCH_DIR}/po2_benchmark.log"
+TIME_FILE="${BENCH_DIR}/time_output.txt"
+
+# ---------------------------------------------------------------------------
+# Run OpenMolcas — capture peak memory via /usr/bin/time -v
+#
+# Inner shell: all pymolcas output goes to LOGFILE.
+# Outer /usr/bin/time -v: writes its stats (MaxRSS etc.) to TIME_FILE only.
+# ---------------------------------------------------------------------------
+echo "--- Starting pymolcas at $(date) ---"
+T_START=$(date +%s)
+
+/usr/bin/time -v sh -c \
+    "cd '${WORK_DIR}' && pymolcas '${FILLED_INPUT}' > '${LOGFILE}' 2>&1" \
+    2>"${TIME_FILE}"
+MOLCAS_EXIT=$?
+
+T_END=$(date +%s)
+TOTAL_WALL_S=$((T_END - T_START))
+
+echo ""
+echo "--- pymolcas exit code: ${MOLCAS_EXIT} ---"
+echo "--- Total wall time: ${TOTAL_WALL_S} s ---"
+echo ""
+
+# Preserve key orbital and JobMix files
+cp "${WORK_DIR}/Singlet.RasOrb" "${BENCH_DIR}/Singlet.RasOrb" 2>/dev/null || true
+cp "${WORK_DIR}/JobMix.S5"      "${BENCH_DIR}/JobMix.S5"      2>/dev/null || true
+cp "${WORK_DIR}/JobMix.S3"      "${BENCH_DIR}/JobMix.S3"      2>/dev/null || true
+cp "${WORK_DIR}/JobMix.S1"      "${BENCH_DIR}/JobMix.S1"      2>/dev/null || true
+
+# Clean up node-local working directory
+rm -rf "${WORK_DIR}"
+echo "Node-local workdir cleaned."
+
+# ---------------------------------------------------------------------------
+# Check for success
+# ---------------------------------------------------------------------------
+if ! grep -qi "happy landing" "${LOGFILE}"; then
+    echo "WARNING: 'Happy landing' not found in log — run may have failed."
+    echo "  Check ${LOGFILE} for errors."
+fi
+
+# ---------------------------------------------------------------------------
+# Collect metrics
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- Collecting metrics at $(date) ---"
+python3 "${BENCH_DIR}/collect_metrics.py" \
+    --log        "${LOGFILE}" \
+    --time-file  "${TIME_FILE}" \
+    --total-wall "${TOTAL_WALL_S}" \
+    --pbs-jobid  "${PBS_JOBID}" \
+    --n-elec     "${CAS_N_ELEC}" \
+    --n-orb      "${CAS_N_ORB}" \
+    --ciroot-q   "${CIROOT_Q}" \
+    --ciroot-t   "${CIROOT_T}" \
+    --ciroot-s   "${CIROOT_S}" \
+    --molcas-mem "${MOLCAS_MEM}" \
+    --output     "${BENCH_DIR}/benchmark_metrics.json" \
+    --summary    "${BENCH_DIR}/benchmark_summary.txt"
+
+echo ""
+echo "Benchmark complete: $(date)"
+echo "  Log:     ${LOGFILE}"
+echo "  Metrics: ${BENCH_DIR}/benchmark_metrics.json"
+echo "  Summary: ${BENCH_DIR}/benchmark_summary.txt"
