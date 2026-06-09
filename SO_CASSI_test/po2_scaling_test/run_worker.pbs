@@ -11,11 +11,15 @@
 # Shared files (10 Seward + 1 JobIph) are injected via >>COPY from
 # $PBS_O_WORKDIR/shared/ (Lustre) into MOLCAS_WORKDIR (node-local NVMe).
 #
-# Parameters (pass via  qsub -v "K=5,SPIN=triplet,ROOTS=1,2,3,4,5,BATCH_IDX=0"):
-#   K          roots per batch (used for output file naming only)
-#   SPIN       triplet | quintet | singlet  (selects JobIph)
-#   ROOTS      comma-separated root indices (e.g. "1,2,3,4,5")
-#   BATCH_IDX  integer batch index (used for output file naming)
+# Parameters (pass via  qsub -v "K=5,SPIN=triplet,ROOT_START=1,ROOT_END=5,BATCH_IDX=0"):
+#   K           roots per batch (used for output file naming only)
+#   SPIN        triplet | quintet | singlet  (selects JobIph)
+#   ROOT_START  first root index (inclusive)
+#   ROOT_END    last root index (inclusive)
+#   BATCH_IDX   integer batch index (used for output file naming)
+#
+# Note: ROOTS is passed as ROOT_START/ROOT_END (two integers) rather than a
+# comma-separated list because PBS -v interprets commas as variable separators.
 #
 # Output (written to PBS_O_WORKDIR, committed after the sweep):
 #   worker_k${K}_b${BATCH_IDX}.log    OpenMolcas log
@@ -36,10 +40,10 @@ cd "${BENCH_DIR}"
 echo "========================================"
 echo "  Po2 k-scaling — Worker k=${K} b=${BATCH_IDX} spin=${SPIN}"
 echo "========================================"
-echo "Start:     $(date)"
-echo "Host:      $(hostname)"
-echo "PBS_JOBID: ${PBS_JOBID}"
-echo "ROOTS:     ${ROOTS}"
+echo "Start:      $(date)"
+echo "Host:       $(hostname)"
+echo "PBS_JOBID:  ${PBS_JOBID}"
+echo "Roots:      ${ROOT_START}–${ROOT_END}"
 echo ""
 
 # ---------------------------------------------------------------------------
@@ -81,9 +85,8 @@ INJECT_EOF
 echo ">>COPY \$CurrDir/shared/rasscf_${SPIN}.JobIph  \$WorkDir/\$Project.JobIph" >> "${INPUT}"
 echo "" >> "${INPUT}"
 
-# CASPT2 blocks: one per root in ROOTS
-IFS=',' read -ra ROOT_LIST <<< "${ROOTS}"
-for root in "${ROOT_LIST[@]}"; do
+# CASPT2 blocks: one per root from ROOT_START to ROOT_END
+for root in $(seq "${ROOT_START}" "${ROOT_END}"); do
     cat >> "${INPUT}" << EOF
 
 &CASPT2
@@ -96,7 +99,8 @@ End of Input
 EOF
 done
 
-echo "Generated input with ${#ROOT_LIST[@]} CASPT2 block(s) for roots: ${ROOTS}"
+N_ROOTS=$(( ROOT_END - ROOT_START + 1 ))
+echo "Generated input with ${N_ROOTS} CASPT2 block(s) for roots ${ROOT_START}-${ROOT_END}"
 echo ""
 
 # ---------------------------------------------------------------------------
@@ -117,7 +121,7 @@ WALL_S=$((T_END - T_START))
 echo "--- pymolcas exit code: ${MOLCAS_EXIT}  wall: ${WALL_S} s ---"
 
 if grep -qi "happy landing" "${LOG_FILE}"; then
-    echo "SUCCESS k=${K} spin=${SPIN} batch=${BATCH_IDX} roots=${ROOTS}"
+    echo "SUCCESS k=${K} spin=${SPIN} batch=${BATCH_IDX} roots=${ROOT_START}-${ROOT_END}"
 else
     echo "FAILED  k=${K} spin=${SPIN} batch=${BATCH_IDX} — no Happy landing in ${LOG_FILE##*/}"
     exit 1

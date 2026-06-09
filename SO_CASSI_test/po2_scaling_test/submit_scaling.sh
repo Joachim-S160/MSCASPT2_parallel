@@ -66,14 +66,13 @@ for K in "${K_VALUES[@]}"; do
         while [ "${ROOT}" -le "${MAX_ROOT}" ]; do
             END=$(( ROOT + K - 1 ))
             [ "${END}" -gt "${MAX_ROOT}" ] && END="${MAX_ROOT}"
-            ROOTS="$(seq -s, "${ROOT}" "${END}")"
 
             JOB_ID=$(qsub \
                 ${DEPEND_FLAG} \
-                -v "K=${K},SPIN=${SPIN},ROOTS=${ROOTS},BATCH_IDX=${BATCH_IDX}" \
+                -v "K=${K},SPIN=${SPIN},ROOT_START=${ROOT},ROOT_END=${END},BATCH_IDX=${BATCH_IDX}" \
                 "${BENCH_DIR}/run_worker.pbs" \
             )
-            echo "  k=${K} b=${BATCH_IDX} roots=${ROOTS} → ${JOB_ID%%.*}"
+            echo "  k=${K} b=${BATCH_IDX} roots=${ROOT}-${END} → ${JOB_ID%%.*}"
             BATCH_IDX=$(( BATCH_IDX + 1 ))
             ROOT=$(( END + 1 ))
             TOTAL_WORKERS=$(( TOTAL_WORKERS + 1 ))
@@ -83,14 +82,13 @@ for K in "${K_VALUES[@]}"; do
         for OFFSET in 1 11 21; do
             END=$(( OFFSET + K - 1 ))
             [ "${END}" -gt "${MAX_ROOT}" ] && END="${MAX_ROOT}"
-            ROOTS="$(seq -s, "${OFFSET}" "${END}")"
 
             JOB_ID=$(qsub \
                 ${DEPEND_FLAG} \
-                -v "K=${K},SPIN=${SPIN},ROOTS=${ROOTS},BATCH_IDX=${BATCH_IDX}" \
+                -v "K=${K},SPIN=${SPIN},ROOT_START=${OFFSET},ROOT_END=${END},BATCH_IDX=${BATCH_IDX}" \
                 "${BENCH_DIR}/run_worker.pbs" \
             )
-            echo "  k=${K} b=${BATCH_IDX} roots=${ROOTS} → ${JOB_ID%%.*}"
+            echo "  k=${K} b=${BATCH_IDX} roots=${OFFSET}-${END} → ${JOB_ID%%.*}"
             BATCH_IDX=$(( BATCH_IDX + 1 ))
             TOTAL_WORKERS=$(( TOTAL_WORKERS + 1 ))
         done
