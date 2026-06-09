@@ -19,6 +19,7 @@ import argparse
 import json
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 
@@ -26,76 +27,94 @@ from pathlib import Path
 # Parsing helpers
 # ---------------------------------------------------------------------------
 
+_DT_FORMATS = (
+    "%a %b %d %I:%M:%S %p %Y",   # HPC: "Tue Jun  9 10:58:25 AM CEST 2026" (after tz strip)
+    "%a %b  %d %I:%M:%S %p %Y",  # double-space day variant
+    "%a %b %d %H:%M:%S %Y",      # local: "Tue Jun  9 15:28:50 2026"
+    "%a %b  %d %H:%M:%S %Y",     # double-space day variant
+)
+
+def _parse_module_dt(dt_raw: str) -> datetime | None:
+    """Parse datetime from Start/Stop Module marker, tolerating timezone and format variants."""
+    # Strip trailing timezone abbreviation (e.g. CEST, CET, UTC, EST)
+    dt_str = re.sub(r'\s+[A-Z]{2,5}\s*$', '', dt_raw.strip())
+    for fmt in _DT_FORMATS:
+        try:
+            return datetime.strptime(dt_str, fmt)
+        except ValueError:
+            pass
+    return None
+
+
 def parse_module_timings(log_text: str) -> dict[str, float]:
     """
-    Return {section_label: wall_time_s} by scanning module start/stop markers.
+    Return {section_label: wall_time_s} by diffing Start/Stop Module timestamps.
 
-    Actual OpenMolcas log format (confirmed from local log files):
-      --- Start Module: rasscf at <datetime> ---
+    OpenMolcas log format:
+      --- Start Module: rasscf at Tue Jun  9 10:58:25 AM CEST 2026 ---
         ...
-      --- Stop Module: rasscf at <datetime> /rc=_RC_ALL_IS_WELL_ ---
-      --- Module rasscf spent N seconds ---
-          Timing: Wall=12.23 User=11.68 System=0.42
+      --- Stop Module:  rasscf at Tue Jun  9 11:23:47 AM CEST 2026 /rc=_RC_ALL_IS_WELL_ ---
 
-    Crucially: Timing: appears AFTER --- Stop Module ---, so we track the
-    most-recently-closed module when assigning timing values.
+    Primary method: subtract Stop − Start datetimes (resolution: 1 second, sufficient
+    for modules that run for minutes to hours on HPC).
 
-    Label assignment uses position-ordering — only Gateway prints the user
-    title inside the module section; RASSCF/CASPT2 modules do NOT echo their
-    section-specific Title= keywords in the module output. The cascade is
-    always GATEWAY → SEWARD → RASSCF(Q) → CASPT2(Q) → RASSCF(T) →
-    CASPT2(T) → RASSCF(S) → CASPT2(S) → RASSI.
+    Fallback: `Timing: Wall=X` line after Stop Module (printed only for the LAST
+    module in a session — so unreliable for multi-module runs).
 
-    For modules that appear multiple times (rasscf, caspt2), the Nth
-    occurrence is labelled using the ordered spin list [quintet, triplet, singlet].
+    Label assignment: cascade order is always
+      GATEWAY → SEWARD → SCF → RASSCF(Q) → CASPT2(Q) → RASSCF(T) →
+      CASPT2(T) → RASSCF(S) → CASPT2(S) → RASSI
+    RASSCF and CASPT2 are labelled by occurrence index → spin [quintet, triplet, singlet].
     """
-    # The expected ordered sequence of module occurrences in the log.
-    # This maps (module_name, occurrence_index) → label.
     SPIN_ORDER = ["quintet", "triplet", "singlet"]
-    SINGLE_MODULES = {"gateway", "seward", "scf", "rassi"}  # appear exactly once
+    SINGLE_MODULES = {"gateway", "seward", "scf", "rassi"}
 
-    timings: dict[str, list[float]] = {}
-    # occurrence counters for repeated modules
+    re_start   = re.compile(r'--- Start Module:\s+(\w+)\s+at\s+(.+?)\s*---', re.IGNORECASE)
+    re_stop    = re.compile(r'--- Stop Module:\s+(\w+)\s+at\s+(.+?)\s*(?:/rc=|---)', re.IGNORECASE)
+    re_timing  = re.compile(r'Timing:\s+Wall\s*=\s*([\d.]+)', re.IGNORECASE)
+
     module_counts: dict[str, int] = {"rasscf": 0, "caspt2": 0}
-    current_label: str = ""
-    last_label: str = ""  # label of the most recently closed module
-
-    re_start  = re.compile(r'--- Start Module:\s+(\w+)\s+at', re.IGNORECASE)
-    re_stop   = re.compile(r'--- Stop Module:\s+(\w+)\s+at', re.IGNORECASE)
-    re_timing = re.compile(r'Timing:\s+Wall\s*=\s*([\d.]+)', re.IGNORECASE)
+    start_times: dict[str, datetime] = {}   # label → datetime
+    timings: dict[str, float] = {}
+    last_label: str = ""
 
     for line in log_text.splitlines():
-        # Module start — resolve label immediately from occurrence order
-        m = re_start.search(line)
-        if m:
-            mod = m.group(1).lower()
+        ms = re_start.search(line)
+        if ms:
+            mod = ms.group(1).lower()
             if mod in SINGLE_MODULES:
-                current_label = mod
+                label = mod
             elif mod in module_counts:
                 idx = module_counts[mod]
-                if idx < len(SPIN_ORDER):
-                    spin = SPIN_ORDER[idx]
-                    current_label = f"{mod}_{spin}"
-                else:
-                    current_label = f"{mod}_{idx}"
+                spin = SPIN_ORDER[idx] if idx < len(SPIN_ORDER) else str(idx)
+                label = f"{mod}_{spin}"
                 module_counts[mod] += 1
             else:
-                current_label = mod
+                label = mod
+            dt = _parse_module_dt(ms.group(2))
+            if dt:
+                start_times[label] = dt
+            last_label = label
             continue
 
-        # Module stop — freeze current_label for use by the Timing: line
-        m = re_stop.search(line)
-        if m:
-            last_label = current_label
+        mp = re_stop.search(line)
+        if mp:
+            mod = mp.group(1).lower()
+            # Resolve label for this stop (use last_label which was set at Start)
+            label = last_label
+            dt = _parse_module_dt(mp.group(2))
+            if dt and label in start_times:
+                elapsed = (dt - start_times[label]).total_seconds()
+                timings[label] = elapsed
+            last_label = label   # keep for Timing: fallback
             continue
 
-        # Timing: appears after Stop Module — assign to last closed module
-        m = re_timing.search(line)
-        if m and last_label:
-            timings.setdefault(last_label, []).append(float(m.group(1)))
+        # Fallback: Timing: line after Stop (only for last module per session)
+        mt = re_timing.search(line)
+        if mt and last_label and last_label not in timings:
+            timings[last_label] = float(mt.group(1))
 
-    # Take the LAST timing per label (handles retries / repeated sections)
-    return {label: vals[-1] for label, vals in timings.items() if vals}
+    return timings
 
 
 def parse_reference_weights(log_text: str) -> dict[str, list[float]]:

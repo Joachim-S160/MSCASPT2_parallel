@@ -1,0 +1,46 @@
+* =============================================================================
+* N2 parallel CASPT2 test — Phase 1: setup (run once)
+* CAS(6,6) / cc-pVDZ / 8 singlet roots / NoSym
+*
+* Runs GATEWAY + SEWARD(Cholesky) + RASSCF and saves 11 shared files to
+* $CurrDir/shared/:
+*   seward.{RunFile,OneInt,SymInfo,NqGrid,ChVec1,ChSel1,ChRed,ChDiag,ChMap,ChRst}
+*   rasscf.JobIph
+*
+* These files replace GATEWAY + SEWARD + RASSCF in all worker jobs.
+* =============================================================================
+
+&GATEWAY
+  Coord= n2.xyz
+  Basis= cc-pVDZ
+  Group= NoSym
+
+&SEWARD
+  Cholesky
+End of Input
+
+&RASSCF
+  Symmetry= 1
+  Spin=     1
+  CIROOT=   8 8 1
+  nActEl=   6 0 0
+  Inactive= 4
+  Ras2=     6
+  THRS=     1.0e-08 1.0e-04 1.0e-04
+  Levshft=  0.5
+  Iteration= 200 50
+  CIMX=     200
+  SDAV=     500
+End of Input
+
+>>COPY $Project.RunFile $CurrDir/shared/seward.RunFile
+>>COPY $Project.OneInt  $CurrDir/shared/seward.OneInt
+>>COPY $Project.SymInfo $CurrDir/shared/seward.SymInfo
+>>COPY $Project.NqGrid  $CurrDir/shared/seward.NqGrid
+>>COPY $Project.ChVec1  $CurrDir/shared/seward.ChVec1
+>>COPY $Project.ChSel1  $CurrDir/shared/seward.ChSel1
+>>COPY $Project.ChRed   $CurrDir/shared/seward.ChRed
+>>COPY $Project.ChDiag  $CurrDir/shared/seward.ChDiag
+>>COPY $Project.ChMap   $CurrDir/shared/seward.ChMap
+>>COPY $Project.ChRst   $CurrDir/shared/seward.ChRst
+>>COPY $Project.JobIph  $CurrDir/shared/rasscf.JobIph

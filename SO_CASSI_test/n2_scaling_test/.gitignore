@@ -1,0 +1,11 @@
+mw_*/
+shared/
+*.log
+batch_k*.input
+time_k*.txt
+__pycache__/
+*.pyc
+*.RasOrb
+*.RasOrb.*
+*.rasscf.h5
+*.ScfOrb
