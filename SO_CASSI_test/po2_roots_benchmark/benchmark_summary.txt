@@ -8,20 +8,20 @@
   Status         : SUCCESS
 
   --- Timing (wall seconds) ---
-  gateway                 0.0 s  #
-  seward                  0.0 s  #
-  scf                     0.0 s  #
-  rasscf_quintet          0.0 s  #
-  caspt2_quintet          0.0 s  #
-  rasscf_triplet          0.0 s  #
-  caspt2_triplet          0.0 s  #
-  rasscf_singlet          0.0 s  #
-  caspt2_singlet          0.0 s  #
-  rassi                7639.2 s  ##############################################################################################################################################################################################################################################################
+  gateway                 9.0 s  #
+  seward                265.0 s  ########
+  scf                    39.0 s  #
+  rasscf_quintet        246.0 s  ########
+  caspt2_quintet       1809.0 s  ############################################################
+  rasscf_triplet        271.0 s  #########
+  caspt2_triplet       2786.0 s  ############################################################################################
+  rasscf_singlet        150.0 s  #####
+  caspt2_singlet        200.0 s  ######
+  rassi                1866.0 s  ##############################################################
 
-  RASSCF total   :      0.0 s
-  CASPT2 total   :      0.0 s
-  Measured total :   7639.2 s
+  RASSCF total   :    667.0 s
+  CASPT2 total   :   4795.0 s
+  Measured total :   7641.0 s
   PBS wall total :   7653.0 s
 
   --- Memory ---
