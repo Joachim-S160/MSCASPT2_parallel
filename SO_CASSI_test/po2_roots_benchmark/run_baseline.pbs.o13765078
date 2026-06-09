@@ -1,0 +1,71 @@
+========================================
+autoCAS4HE environment loaded (Hortense)
+========================================
+  Serenity:    /dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE/serenity/build
+  autoCAS:     /dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE/autocas_env/bin/scine_autocas
+  Basis path:  /dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE/tests/custom_basis:/dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE/serenity/data/basis/
+========================================
+========================================
+  Po2 SO-CASSI Roots Benchmark
+========================================
+Start:      Tue Jun  9 10:58:25 AM CEST 2026
+Host:       node5391.dodrio.os
+PBS_JOBID:  13765078
+CAS:        CAS(12,8)
+CIROOT:     Q=70 T=90 S=15
+MOLCAS_MEM: 14000 MB
+
+--- Starting pymolcas at Tue Jun  9 10:58:25 AM CEST 2026 ---
+
+--- pymolcas exit code: 0 ---
+--- Total wall time: 7653 s ---
+
+Node-local workdir cleaned.
+
+--- Collecting metrics at Tue Jun  9 01:06:00 PM CEST 2026 ---
+Metrics written: /dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/SO_CASSI_test/po2_roots_benchmark/benchmark_metrics.json
+============================================================
+  Po2 SO-CASSI Roots Benchmark — Summary
+============================================================
+  Geometry       : eq (R=2.797 Å, bundled po2_eq.xyz)
+  CAS            : CAS(12,8)
+  Roots (Q/T/S)  : 70/90/15  = 175 total
+  Method         : Multistate=all  (baseline)
+  Status         : SUCCESS
+
+  --- Timing (wall seconds) ---
+  gateway                 0.0 s  #
+  seward                  0.0 s  #
+  scf                     0.0 s  #
+  rasscf_quintet          0.0 s  #
+  caspt2_quintet          0.0 s  #
+  rasscf_triplet          0.0 s  #
+  caspt2_triplet          0.0 s  #
+  rasscf_singlet          0.0 s  #
+  caspt2_singlet          0.0 s  #
+  rassi                7639.2 s  ##############################################################################################################################################################################################################################################################
+
+  RASSCF total   :      0.0 s
+  CASPT2 total   :      0.0 s
+  Measured total :   7639.2 s
+  PBS wall total :   7653.0 s
+
+  --- Memory ---
+  MOLCAS_MEM (requested) : 14000 MB
+  Peak RSS (/usr/bin/time) : 718.5 MB
+
+  --- Reference weights ---
+  quintet   : n= 70  min=0.73212  mean=0.84405  n<0.70=0
+  triplet   : n= 90  min=0.86177  mean=0.88592  n<0.70=0
+  singlet   : n= 15  min=0.89170  mean=0.89905  n<0.70=0
+
+  --- SO-RASSI energies ---
+  State 1 : -44342.3876152433 Ha
+  State 2 : -44342.3599977460 Ha  (gap = 6061.3 cm⁻¹)
+============================================================
+
+
+Benchmark complete: Tue Jun  9 01:06:11 PM CEST 2026
+  Log:     /dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/SO_CASSI_test/po2_roots_benchmark/po2_benchmark.log
+  Metrics: /dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/SO_CASSI_test/po2_roots_benchmark/benchmark_metrics.json
+  Summary: /dodrio/scratch/projects/starting_2025_097/MSCASPT2_parallel/SO_CASSI_test/po2_roots_benchmark/benchmark_summary.txt

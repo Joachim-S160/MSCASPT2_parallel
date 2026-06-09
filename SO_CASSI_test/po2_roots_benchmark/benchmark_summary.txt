@@ -1,0 +1,39 @@
+============================================================
+  Po2 SO-CASSI Roots Benchmark — Summary
+============================================================
+  Geometry       : eq (R=2.797 Å, bundled po2_eq.xyz)
+  CAS            : CAS(12,8)
+  Roots (Q/T/S)  : 70/90/15  = 175 total
+  Method         : Multistate=all  (baseline)
+  Status         : SUCCESS
+
+  --- Timing (wall seconds) ---
+  gateway                 0.0 s  #
+  seward                  0.0 s  #
+  scf                     0.0 s  #
+  rasscf_quintet          0.0 s  #
+  caspt2_quintet          0.0 s  #
+  rasscf_triplet          0.0 s  #
+  caspt2_triplet          0.0 s  #
+  rasscf_singlet          0.0 s  #
+  caspt2_singlet          0.0 s  #
+  rassi                7639.2 s  ##############################################################################################################################################################################################################################################################
+
+  RASSCF total   :      0.0 s
+  CASPT2 total   :      0.0 s
+  Measured total :   7639.2 s
+  PBS wall total :   7653.0 s
+
+  --- Memory ---
+  MOLCAS_MEM (requested) : 14000 MB
+  Peak RSS (/usr/bin/time) : 718.5 MB
+
+  --- Reference weights ---
+  quintet   : n= 70  min=0.73212  mean=0.84405  n<0.70=0
+  triplet   : n= 90  min=0.86177  mean=0.88592  n<0.70=0
+  singlet   : n= 15  min=0.89170  mean=0.89905  n<0.70=0
+
+  --- SO-RASSI energies ---
+  State 1 : -44342.3876152433 Ha
+  State 2 : -44342.3599977460 Ha  (gap = 6061.3 cm⁻¹)
+============================================================
