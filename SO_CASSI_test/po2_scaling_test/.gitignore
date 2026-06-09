@@ -1,0 +1,14 @@
+shared/
+worker_*.input
+worker_*.log
+worker_*.time
+setup.input
+setup.log
+*.png
+__pycache__/
+*.pyc
+Quintet.RasOrb
+Triplet.RasOrb
+Singlet.RasOrb
+molcas_tmp/
+scaling_results.json

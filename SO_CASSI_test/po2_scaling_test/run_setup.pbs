@@ -1,0 +1,206 @@
+#!/bin/bash
+#PBS -A starting_2025_097
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=01:30:00
+#PBS -l mem=20gb
+#PBS -N po2_scaling_setup
+#PBS -m be
+#PBS -M joachim.scheerlinck@ugent.be
+#
+# Po2 k-scaling benchmark — Phase 1 setup job.
+#
+# Runs GATEWAY + SEWARD(Cholesky) + SCF + RASSCF(Q/T/S) once.
+# Saves 13 shared files to $PBS_O_WORKDIR/shared/:
+#   10 Seward files:  seward.{RunFile,OneInt,SymInfo,NqGrid,ChVec1,ChSel1,ChRed,ChDiag,ChMap,ChRst}
+#    3 JobIph files:  rasscf_{quintet,triplet,singlet}.JobIph
+#   3 RasOrb files in PBS_O_WORKDIR (intermediate, not committed):
+#      Quintet.RasOrb, Triplet.RasOrb, Singlet.RasOrb
+#
+# MOLCAS_WORKDIR is placed on node-local NVMe ($TMPDIR) to keep Cholesky I/O off Lustre.
+# The shared/ output is written back to Lustre (PBS_O_WORKDIR) via >>COPY.
+#
+# To run:
+#   cd SO_CASSI_test/po2_scaling_test/
+#   qsub run_setup.pbs
+# Capture SETUP_JOBID from output for worker dependency:
+#   SETUP_ID=$(qsub run_setup.pbs | cut -d. -f1)
+
+BENCH_DIR="${PBS_O_WORKDIR}"
+INSTALL_DIR="/dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE"
+source "${INSTALL_DIR}/setup_hortense.sh"
+
+export MOLCAS_MEM=16000
+export MOLCAS_PRINT=verbose
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+
+cd "${BENCH_DIR}"
+
+echo "========================================"
+echo "  Po2 k-scaling — Setup Job"
+echo "========================================"
+echo "Start:     $(date)"
+echo "Host:      $(hostname)"
+echo "PBS_JOBID: ${PBS_JOBID}"
+echo "BENCH_DIR: ${BENCH_DIR}"
+echo ""
+
+mkdir -p "${BENCH_DIR}/shared"
+
+MOLCAS_WORKDIR="${TMPDIR:-${BENCH_DIR}/molcas_tmp}/molcas_setup_${PBS_JOBID}"
+mkdir -p "${MOLCAS_WORKDIR}"
+export MOLCAS_WORKDIR
+
+echo "MOLCAS_WORKDIR: ${MOLCAS_WORKDIR}"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Generate setup input (inline — no external template needed)
+# ---------------------------------------------------------------------------
+cat > "${BENCH_DIR}/setup.input" << 'SETUP_EOF'
+* Po2 k-scaling setup: GATEWAY + SEWARD + SCF + RASSCF(Q/T/S)
+* No CASPT2 — workers handle CASPT2 individually.
+* Saves: 10 Seward files + 3 JobIph (one per spin) to $CurrDir/shared/
+
+>> export MOLCAS_PRINT=verbose
+
+&GATEWAY
+  Coord= $CurrDir/../po2_roots_benchmark/po2_eq.xyz
+  Basis= ANO-RCC-VQZP
+  Group= NoSym
+
+&SEWARD
+  Cholesky
+End of Input
+
+&SCF
+End of Input
+
+* ============================================================
+* QUINTET (Spin=5, 70 roots)
+* Start from RHF SCF orbitals
+* ============================================================
+&RASSCF
+  Symmetry= 1
+  Spin=     5
+  CIROOT=   70 70 1
+  nActEl=   12 0 0
+  Inactive= 78
+  Ras2=     8
+  THRS=     1.0e-08 1.0e-04 1.0e-04
+  Levshft=  0.1
+  Iteration= 200 50
+  CIMX=     200
+  SDAV=     500
+End of Input
+
+>>COPY $Project.JobIph $CurrDir/shared/rasscf_quintet.JobIph
+>>COPY $Project.RasOrb $CurrDir/Quintet.RasOrb
+
+* ============================================================
+* TRIPLET (Spin=3, 90 roots)
+* Start from quintet-optimised orbitals
+* ============================================================
+&RASSCF
+  FILEORB=  $CurrDir/Quintet.RasOrb
+  Symmetry= 1
+  Spin=     3
+  CIROOT=   90 90 1
+  nActEl=   12 0 0
+  Inactive= 78
+  Ras2=     8
+  THRS=     1.0e-08 1.0e-04 1.0e-04
+  Levshft=  0.1
+  Iteration= 200 50
+  CIMX=     200
+  SDAV=     500
+End of Input
+
+>>COPY $Project.JobIph $CurrDir/shared/rasscf_triplet.JobIph
+>>COPY $Project.RasOrb $CurrDir/Triplet.RasOrb
+
+* ============================================================
+* SINGLET (Spin=1, 15 roots)
+* Start from triplet-optimised orbitals
+* ============================================================
+&RASSCF
+  FILEORB=  $CurrDir/Triplet.RasOrb
+  Symmetry= 1
+  Spin=     1
+  CIROOT=   15 15 1
+  nActEl=   12 0 0
+  Inactive= 78
+  Ras2=     8
+  THRS=     1.0e-08 1.0e-04 1.0e-04
+  Levshft=  0.1
+  Iteration= 200 50
+  CIMX=     200
+  SDAV=     500
+End of Input
+
+>>COPY $Project.JobIph $CurrDir/shared/rasscf_singlet.JobIph
+>>COPY $Project.RasOrb $CurrDir/Singlet.RasOrb
+
+* Save Seward files (all persist in $WorkDir throughout the session)
+>>COPY $Project.RunFile $CurrDir/shared/seward.RunFile
+>>COPY $Project.OneInt  $CurrDir/shared/seward.OneInt
+>>COPY $Project.SymInfo $CurrDir/shared/seward.SymInfo
+>>COPY $Project.NqGrid  $CurrDir/shared/seward.NqGrid
+>>COPY $Project.ChVec1  $CurrDir/shared/seward.ChVec1
+>>COPY $Project.ChSel1  $CurrDir/shared/seward.ChSel1
+>>COPY $Project.ChRed   $CurrDir/shared/seward.ChRed
+>>COPY $Project.ChDiag  $CurrDir/shared/seward.ChDiag
+>>COPY $Project.ChMap   $CurrDir/shared/seward.ChMap
+>>COPY $Project.ChRst   $CurrDir/shared/seward.ChRst
+SETUP_EOF
+
+# ---------------------------------------------------------------------------
+# Run OpenMolcas
+# ---------------------------------------------------------------------------
+echo "--- Starting pymolcas at $(date) ---"
+T_START=$(date +%s)
+
+pymolcas "${BENCH_DIR}/setup.input" > "${BENCH_DIR}/setup.log" 2>&1
+MOLCAS_EXIT=$?
+
+T_END=$(date +%s)
+echo "--- pymolcas exit code: ${MOLCAS_EXIT}  wall: $((T_END - T_START)) s ---"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Verify output
+# ---------------------------------------------------------------------------
+if ! grep -qi "happy landing" "${BENCH_DIR}/setup.log"; then
+    echo "ERROR: 'Happy landing' not found — setup failed. Check setup.log."
+    exit 1
+fi
+echo "SETUP: Happy landing confirmed."
+
+SEWARD_FILES="RunFile OneInt SymInfo NqGrid ChVec1 ChSel1 ChRed ChDiag ChMap ChRst"
+MISSING=0
+for f in ${SEWARD_FILES}; do
+    if [ ! -f "${BENCH_DIR}/shared/seward.${f}" ]; then
+        echo "  MISSING: shared/seward.${f}"
+        MISSING=1
+    fi
+done
+for spin in quintet triplet singlet; do
+    if [ ! -f "${BENCH_DIR}/shared/rasscf_${spin}.JobIph" ]; then
+        echo "  MISSING: shared/rasscf_${spin}.JobIph"
+        MISSING=1
+    fi
+done
+
+if [ "${MISSING}" -eq 1 ]; then
+    echo "ERROR: one or more shared files missing — check setup.log."
+    exit 1
+fi
+
+echo ""
+echo "Shared files written ($(ls "${BENCH_DIR}/shared/" | wc -l) total):"
+ls -lh "${BENCH_DIR}/shared/"
+echo ""
+echo "Setup complete: $(date)"
+echo "Submit workers with:"
+echo "  bash submit_scaling.sh"
+echo "  (or: bash submit_scaling.sh --full  for all 90 triplet roots per k)"

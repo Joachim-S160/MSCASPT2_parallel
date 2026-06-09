@@ -1,0 +1,126 @@
+#!/bin/bash
+#PBS -A starting_2025_097
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=00:30:00
+#PBS -l mem=8gb
+#PBS -N po2_worker
+#
+# Po2 k-scaling benchmark — Phase 2 worker job.
+#
+# Runs k sequential CASPT2(Only=N) blocks — no GATEWAY, SEWARD, or RASSCF.
+# Shared files (10 Seward + 1 JobIph) are injected via >>COPY from
+# $PBS_O_WORKDIR/shared/ (Lustre) into MOLCAS_WORKDIR (node-local NVMe).
+#
+# Parameters (pass via  qsub -v "K=5,SPIN=triplet,ROOTS=1,2,3,4,5,BATCH_IDX=0"):
+#   K          roots per batch (used for output file naming only)
+#   SPIN       triplet | quintet | singlet  (selects JobIph)
+#   ROOTS      comma-separated root indices (e.g. "1,2,3,4,5")
+#   BATCH_IDX  integer batch index (used for output file naming)
+#
+# Output (written to PBS_O_WORKDIR, committed after the sweep):
+#   worker_k${K}_b${BATCH_IDX}.log    OpenMolcas log
+#   worker_k${K}_b${BATCH_IDX}.time   /usr/bin/time -v peak-memory stats
+#   worker_k${K}_b${BATCH_IDX}.input  generated OpenMolcas input (gitignored)
+
+BENCH_DIR="${PBS_O_WORKDIR}"
+INSTALL_DIR="/dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE"
+source "${INSTALL_DIR}/setup_hortense.sh"
+
+export MOLCAS_MEM=6000
+export MOLCAS_PRINT=verbose
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+
+cd "${BENCH_DIR}"
+
+echo "========================================"
+echo "  Po2 k-scaling — Worker k=${K} b=${BATCH_IDX} spin=${SPIN}"
+echo "========================================"
+echo "Start:     $(date)"
+echo "Host:      $(hostname)"
+echo "PBS_JOBID: ${PBS_JOBID}"
+echo "ROOTS:     ${ROOTS}"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Node-local MOLCAS_WORKDIR (NVMe SSD — keeps Cholesky I/O off Lustre)
+# >>COPY lines stage Seward/JobIph files FROM Lustre shared/ TO here.
+# ---------------------------------------------------------------------------
+MOLCAS_WORKDIR="${TMPDIR:-${BENCH_DIR}/molcas_tmp}/molcas_k${K}_b${BATCH_IDX}_${PBS_JOBID}"
+mkdir -p "${MOLCAS_WORKDIR}"
+export MOLCAS_WORKDIR
+echo "MOLCAS_WORKDIR: ${MOLCAS_WORKDIR}"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Generate worker input on the fly
+# $CurrDir resolves to BENCH_DIR (= PBS_O_WORKDIR) because input file lives there.
+# OpenMolcas variables ($CurrDir, $WorkDir, $Project) are escaped so the shell
+# passes them literally — OpenMolcas substitutes them at parse time.
+# ---------------------------------------------------------------------------
+INPUT="${BENCH_DIR}/worker_k${K}_b${BATCH_IDX}.input"
+
+# Seward injection block (single-quoted heredoc — no shell expansion of $ inside)
+cat > "${INPUT}" << 'INJECT_EOF'
+* Po2 k-scaling worker — pure CASPT2(Only=N) injection job
+* No GATEWAY / SEWARD / RASSCF — all outputs come from shared files.
+
+>>COPY $CurrDir/shared/seward.RunFile  $WorkDir/$Project.RunFile
+>>COPY $CurrDir/shared/seward.OneInt   $WorkDir/$Project.OneInt
+>>COPY $CurrDir/shared/seward.SymInfo  $WorkDir/$Project.SymInfo
+>>COPY $CurrDir/shared/seward.NqGrid   $WorkDir/$Project.NqGrid
+>>COPY $CurrDir/shared/seward.ChVec1   $WorkDir/$Project.ChVec1
+>>COPY $CurrDir/shared/seward.ChSel1   $WorkDir/$Project.ChSel1
+>>COPY $CurrDir/shared/seward.ChRed    $WorkDir/$Project.ChRed
+>>COPY $CurrDir/shared/seward.ChDiag   $WorkDir/$Project.ChDiag
+>>COPY $CurrDir/shared/seward.ChMap    $WorkDir/$Project.ChMap
+>>COPY $CurrDir/shared/seward.ChRst    $WorkDir/$Project.ChRst
+INJECT_EOF
+
+# JobIph line needs shell expansion for SPIN but literal $CurrDir/$WorkDir/$Project
+echo ">>COPY \$CurrDir/shared/rasscf_${SPIN}.JobIph  \$WorkDir/\$Project.JobIph" >> "${INPUT}"
+echo "" >> "${INPUT}"
+
+# CASPT2 blocks: one per root in ROOTS
+IFS=',' read -ra ROOT_LIST <<< "${ROOTS}"
+for root in "${ROOT_LIST[@]}"; do
+    cat >> "${INPUT}" << EOF
+
+&CASPT2
+  MAXITER=  300
+  Frozen=   78
+  Multistate= all
+  Imaginary Shift= 0.25
+  Only= ${root}
+End of Input
+EOF
+done
+
+echo "Generated input with ${#ROOT_LIST[@]} CASPT2 block(s) for roots: ${ROOTS}"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Run OpenMolcas with /usr/bin/time -v for peak-RSS measurement
+# Input is in BENCH_DIR → $CurrDir = BENCH_DIR → shared/ accessible.
+# ---------------------------------------------------------------------------
+LOG_FILE="${BENCH_DIR}/worker_k${K}_b${BATCH_IDX}.log"
+TIME_FILE="${BENCH_DIR}/worker_k${K}_b${BATCH_IDX}.time"
+
+T_START=$(date +%s)
+
+/usr/bin/time -v pymolcas "${INPUT}" > "${LOG_FILE}" 2> "${TIME_FILE}"
+MOLCAS_EXIT=$?
+
+T_END=$(date +%s)
+WALL_S=$((T_END - T_START))
+
+echo "--- pymolcas exit code: ${MOLCAS_EXIT}  wall: ${WALL_S} s ---"
+
+if grep -qi "happy landing" "${LOG_FILE}"; then
+    echo "SUCCESS k=${K} spin=${SPIN} batch=${BATCH_IDX} roots=${ROOTS}"
+else
+    echo "FAILED  k=${K} spin=${SPIN} batch=${BATCH_IDX} — no Happy landing in ${LOG_FILE##*/}"
+    exit 1
+fi
+
+echo "Done: $(date)"
