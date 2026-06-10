@@ -13,6 +13,8 @@ Usage:
   python3 collect_scaling.py [--spin triplet] [--plot scaling_results.png]
 """
 
+from __future__ import annotations  # X | Y and list[X] hints on Python 3.8/3.9
+
 import argparse
 import json
 import math
