@@ -1,0 +1,128 @@
+#!/bin/bash
+#PBS -A starting_2025_097
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=00:20:00
+#PBS -l mem=8gb
+#PBS -N po2_socassi_assemble
+#
+# Po2 parallel SO-CASSI — Phase 3 assembly job.
+#
+# 1. Runs collect_heff.py:
+#      - Reads all worker_{SPIN}_k*_b*.log files for the spin block
+#      - Extracts H_eff coupling rows (one per CASPT2(Only=N) block)
+#      - Extracts reference weights; applies KILL_INTRUDERS threshold
+#      - Writes assemble_{SPIN}.input (Seward injection + CASPT2(EFFE))
+#      - Writes heff_{SPIN}.json (metadata consumed by run_rassi.pbs)
+#
+# 2. Runs pymolcas on assemble_{SPIN}.input:
+#      - Injects shared Seward files + RASSCF JobIph (no GATEWAY/SEWARD re-run)
+#      - CASPT2(EFFE) applies the pre-assembled H_eff matrix
+#      - Produces JobMix → copied to shared/JobMix.{S5|S3|S1}
+#
+# Parameters (pass via  qsub -v "SPIN=triplet,N_ROOTS=90,KILL_INTRUDERS=0.70"):
+#   SPIN             quintet | triplet | singlet
+#   N_ROOTS          total roots in this spin block
+#   KILL_INTRUDERS   reference weight threshold (default: 0.70)
+#
+# Dependencies: must run after all Phase 2 workers for this spin complete.
+# See submit_socassi.sh for the afterok dependency chain.
+
+BENCH_DIR="${PBS_O_WORKDIR}"
+INSTALL_DIR="/dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE"
+source "${INSTALL_DIR}/setup_hortense.sh"
+
+export MOLCAS_MEM=6000
+export MOLCAS_PRINT=verbose
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+
+# Default KILL_INTRUDERS if not passed via -v
+KILL_INTRUDERS="${KILL_INTRUDERS:-0.70}"
+
+cd "${BENCH_DIR}"
+
+echo "========================================"
+echo "  Po2 parallel SO-CASSI — Assembly"
+echo "  SPIN=${SPIN}  N_ROOTS=${N_ROOTS}  KILL_INTRUDERS=${KILL_INTRUDERS}"
+echo "========================================"
+echo "Start:     $(date)"
+echo "Host:      $(hostname)"
+echo "PBS_JOBID: ${PBS_JOBID}"
+echo ""
+
+# Spin label for JobMix output filename
+case "${SPIN}" in
+    quintet) SPIN_LABEL="S5" ;;
+    triplet)  SPIN_LABEL="S3" ;;
+    singlet) SPIN_LABEL="S1" ;;
+    *) echo "ERROR: unknown SPIN=${SPIN}"; exit 1 ;;
+esac
+
+# ---------------------------------------------------------------------------
+# Step 1: Collect H_eff + reference weights, write EFFE input
+# ---------------------------------------------------------------------------
+echo "--- Running collect_heff.py at $(date) ---"
+
+python3 "${BENCH_DIR}/collect_heff.py" \
+    --spin           "${SPIN}" \
+    --n-roots        "${N_ROOTS}" \
+    --kill-intruders "${KILL_INTRUDERS}" \
+    --workdir        "${BENCH_DIR}"
+
+if [ $? -ne 0 ]; then
+    echo "ERROR: collect_heff.py failed."
+    exit 1
+fi
+
+if [ ! -f "${BENCH_DIR}/assemble_${SPIN}.input" ]; then
+    echo "ERROR: assemble_${SPIN}.input not generated."
+    exit 1
+fi
+echo ""
+
+# ---------------------------------------------------------------------------
+# Step 2: Run CASPT2(EFFE) — produces JobMix in MOLCAS_WORKDIR
+# ---------------------------------------------------------------------------
+MOLCAS_WORKDIR="${TMPDIR:-${BENCH_DIR}/molcas_tmp}/molcas_assemble_${SPIN}_${PBS_JOBID}"
+mkdir -p "${MOLCAS_WORKDIR}"
+export MOLCAS_WORKDIR
+echo "MOLCAS_WORKDIR: ${MOLCAS_WORKDIR}"
+echo ""
+
+echo "--- Starting pymolcas (CASPT2 EFFE) at $(date) ---"
+T_START=$(date +%s)
+
+pymolcas "${BENCH_DIR}/assemble_${SPIN}.input" > "${BENCH_DIR}/assemble_${SPIN}.log" 2>&1
+MOLCAS_EXIT=$?
+
+T_END=$(date +%s)
+echo "--- pymolcas exit code: ${MOLCAS_EXIT}  wall: $((T_END - T_START)) s ---"
+echo ""
+
+if ! grep -qi "happy landing" "${BENCH_DIR}/assemble_${SPIN}.log"; then
+    echo "ERROR: 'Happy landing' not found in assemble_${SPIN}.log"
+    echo "  Check if CASPT2(EFFE) with injected Seward files works."
+    echo "  If not, add &GATEWAY block to assemble_${SPIN}.input as fallback."
+    exit 1
+fi
+echo "ASSEMBLY (${SPIN}): Happy landing confirmed."
+
+# ---------------------------------------------------------------------------
+# Step 3: Copy JobMix to shared/
+# ---------------------------------------------------------------------------
+# JobMix is in MOLCAS_WORKDIR under the project name; find it.
+JOBMIX_SRC=$(find "${MOLCAS_WORKDIR}" -name "*.JobMix" 2>/dev/null | head -1)
+
+if [ -z "${JOBMIX_SRC}" ]; then
+    echo "ERROR: *.JobMix not found in ${MOLCAS_WORKDIR}"
+    echo "  Available files:"
+    ls -lh "${MOLCAS_WORKDIR}/" 2>/dev/null || true
+    exit 1
+fi
+
+mkdir -p "${BENCH_DIR}/shared"
+cp "${JOBMIX_SRC}" "${BENCH_DIR}/shared/JobMix.${SPIN_LABEL}"
+echo "Copied: ${JOBMIX_SRC##*/} → shared/JobMix.${SPIN_LABEL}"
+ls -lh "${BENCH_DIR}/shared/JobMix.${SPIN_LABEL}"
+echo ""
+echo "Assembly (${SPIN}) complete: $(date)"

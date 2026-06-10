@@ -1,0 +1,12 @@
+shared/
+worker_*.input
+worker_*.log
+worker_*.time
+assemble_*.input
+assemble_*.log
+rassi.input
+rassi.log
+heff_*.json
+__pycache__/
+*.pyc
+molcas_tmp/

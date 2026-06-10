@@ -1,0 +1,136 @@
+#!/bin/bash
+#PBS -A starting_2025_097
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=00:45:00
+#PBS -l mem=20gb
+#PBS -N po2_socassi_rassi
+#
+# Po2 parallel SO-CASSI — Phase 4 RASSI job.
+#
+# Reads n_surviving per spin from heff_{spin}.json (written by collect_heff.py).
+# Injects shared Seward files + 3 JobMix files, runs SO-CASSI RASSI.
+#
+# KILL_INTRUDERS is applied here: Nr of JobIphs = 3 N_Q N_T N_S
+# where N_Q/N_T/N_S are the surviving root counts after intruder truncation.
+# If no truncation occurred, N_Q=80, N_T=90, N_S=40 (equivalent to 'all').
+#
+# Dependencies: must run after all 3 Phase 3 assembly jobs complete.
+# See submit_socassi.sh for the afterok dependency chain.
+
+BENCH_DIR="${PBS_O_WORKDIR}"
+INSTALL_DIR="/dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE"
+source "${INSTALL_DIR}/setup_hortense.sh"
+
+export MOLCAS_MEM=16000
+export MOLCAS_PRINT=verbose
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+
+cd "${BENCH_DIR}"
+
+echo "========================================"
+echo "  Po2 parallel SO-CASSI — RASSI"
+echo "========================================"
+echo "Start:     $(date)"
+echo "Host:      $(hostname)"
+echo "PBS_JOBID: ${PBS_JOBID}"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Verify JobMix files exist
+# ---------------------------------------------------------------------------
+for label in S5 S3 S1; do
+    if [ ! -f "${BENCH_DIR}/shared/JobMix.${label}" ]; then
+        echo "ERROR: shared/JobMix.${label} not found — assembly job may have failed."
+        exit 1
+    fi
+done
+echo "All 3 JobMix files found:"
+ls -lh "${BENCH_DIR}"/shared/JobMix.*
+echo ""
+
+# ---------------------------------------------------------------------------
+# Read n_surviving per spin from heff_*.json
+# ---------------------------------------------------------------------------
+N_Q=$(python3 -c "import json; print(json.load(open('heff_quintet.json'))['n_surviving'])")
+N_T=$(python3 -c "import json; print(json.load(open('heff_triplet.json'))['n_surviving'])")
+N_S=$(python3 -c "import json; print(json.load(open('heff_singlet.json'))['n_surviving'])")
+
+echo "KILL_INTRUDERS survivors:"
+echo "  Quintet: ${N_Q}  Triplet: ${N_T}  Singlet: ${N_S}"
+echo "  Nr of JobIphs = 3 ${N_Q} ${N_T} ${N_S}"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Node-local MOLCAS_WORKDIR (NVMe SSD)
+# ---------------------------------------------------------------------------
+MOLCAS_WORKDIR="${TMPDIR:-${BENCH_DIR}/molcas_tmp}/molcas_rassi_${PBS_JOBID}"
+mkdir -p "${MOLCAS_WORKDIR}"
+export MOLCAS_WORKDIR
+echo "MOLCAS_WORKDIR: ${MOLCAS_WORKDIR}"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Generate RASSI input
+# Seward files needed for spin-orbit operator matrix elements (OneInt).
+# $CurrDir / $WorkDir / $Project are OpenMolcas variables — escaped from shell.
+# N_Q/N_T/N_S must be expanded by the shell before the heredoc is written.
+# ---------------------------------------------------------------------------
+cat > "${BENCH_DIR}/rassi.input" << EOF
+* Po2 parallel SO-CASSI — Phase 4: SO-RASSI
+* Seward files injected for spin-orbit operator integrals.
+* Nr of JobIphs uses n_surviving per spin (KILL_INTRUDERS applied).
+
+>>COPY \$CurrDir/shared/seward.RunFile  \$WorkDir/\$Project.RunFile
+>>COPY \$CurrDir/shared/seward.OneInt   \$WorkDir/\$Project.OneInt
+>>COPY \$CurrDir/shared/seward.SymInfo  \$WorkDir/\$Project.SymInfo
+>>COPY \$CurrDir/shared/seward.NqGrid   \$WorkDir/\$Project.NqGrid
+>>COPY \$CurrDir/shared/seward.ChVec1   \$WorkDir/\$Project.ChVec1
+>>COPY \$CurrDir/shared/seward.ChSel1   \$WorkDir/\$Project.ChSel1
+>>COPY \$CurrDir/shared/seward.ChRed    \$WorkDir/\$Project.ChRed
+>>COPY \$CurrDir/shared/seward.ChDiag   \$WorkDir/\$Project.ChDiag
+>>COPY \$CurrDir/shared/seward.ChMap    \$WorkDir/\$Project.ChMap
+>>COPY \$CurrDir/shared/seward.ChRst    \$WorkDir/\$Project.ChRst
+
+>>COPY \$CurrDir/shared/JobMix.S5  \$WorkDir/JOB001
+>>COPY \$CurrDir/shared/JobMix.S3  \$WorkDir/JOB002
+>>COPY \$CurrDir/shared/JobMix.S1  \$WorkDir/JOB003
+
+&RASSI
+  Nr of JobIphs = 3 ${N_Q} ${N_T} ${N_S}
+  Spin Orbit
+  HEFF
+End of Input
+EOF
+
+echo "Generated rassi.input with Nr of JobIphs = 3 ${N_Q} ${N_T} ${N_S}"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Run OpenMolcas
+# ---------------------------------------------------------------------------
+echo "--- Starting pymolcas (SO-CASSI RASSI) at $(date) ---"
+T_START=$(date +%s)
+
+pymolcas "${BENCH_DIR}/rassi.input" > "${BENCH_DIR}/rassi.log" 2>&1
+MOLCAS_EXIT=$?
+
+T_END=$(date +%s)
+echo "--- pymolcas exit code: ${MOLCAS_EXIT}  wall: $((T_END - T_START)) s ---"
+echo ""
+
+if ! grep -qi "happy landing" "${BENCH_DIR}/rassi.log"; then
+    echo "ERROR: 'Happy landing' not found in rassi.log"
+    exit 1
+fi
+echo "RASSI: Happy landing confirmed."
+echo ""
+
+# ---------------------------------------------------------------------------
+# Print SO-CASSI energy summary
+# ---------------------------------------------------------------------------
+echo "=== SO-CASSI state energies ==="
+grep -A 60 "SO state energies" "${BENCH_DIR}/rassi.log" | head -65 || true
+echo ""
+echo "Full output: rassi.log"
+echo "Done: $(date)"
