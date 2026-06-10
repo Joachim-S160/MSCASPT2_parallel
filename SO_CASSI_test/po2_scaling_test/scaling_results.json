@@ -1,0 +1,93 @@
+{
+  "molecule": "Po2",
+  "spin": "triplet",
+  "n_roots_total": 90,
+  "baseline_rasscf_s": 667,
+  "baseline_rassi_s": 1866,
+  "results": {
+    "1": {
+      "k": 1,
+      "n_measured": 3,
+      "n_success": 3,
+      "batch_walls_s": [
+        37.0,
+        38.0,
+        35.0
+      ],
+      "mean_wall_s": 36.7,
+      "max_wall_s": 38.0,
+      "proj_parallel_s": 38.0,
+      "rss_mb": [
+        97.5,
+        97.4,
+        97.4
+      ],
+      "max_rss_mb": 97.5,
+      "n_batches_full": 90,
+      "total_node_mem_gb": 8.6
+    },
+    "2": {
+      "k": 2,
+      "n_measured": 3,
+      "n_success": 3,
+      "batch_walls_s": [
+        61.0,
+        61.0,
+        63.0
+      ],
+      "mean_wall_s": 61.7,
+      "max_wall_s": 63.0,
+      "proj_parallel_s": 63.0,
+      "rss_mb": [
+        97.5,
+        97.4,
+        97.4
+      ],
+      "max_rss_mb": 97.5,
+      "n_batches_full": 45,
+      "total_node_mem_gb": 4.3
+    },
+    "5": {
+      "k": 5,
+      "n_measured": 3,
+      "n_success": 3,
+      "batch_walls_s": [
+        151.0,
+        148.0,
+        147.0
+      ],
+      "mean_wall_s": 148.7,
+      "max_wall_s": 151.0,
+      "proj_parallel_s": 151.0,
+      "rss_mb": [
+        97.7,
+        98.1,
+        97.5
+      ],
+      "max_rss_mb": 98.1,
+      "n_batches_full": 18,
+      "total_node_mem_gb": 1.7
+    },
+    "10": {
+      "k": 10,
+      "n_measured": 3,
+      "n_success": 3,
+      "batch_walls_s": [
+        298.0,
+        300.0,
+        300.0
+      ],
+      "mean_wall_s": 299.3,
+      "max_wall_s": 300.0,
+      "proj_parallel_s": 300.0,
+      "rss_mb": [
+        97.6,
+        98.1,
+        97.5
+      ],
+      "max_rss_mb": 98.1,
+      "n_batches_full": 9,
+      "total_node_mem_gb": 0.9
+    }
+  }
+}
