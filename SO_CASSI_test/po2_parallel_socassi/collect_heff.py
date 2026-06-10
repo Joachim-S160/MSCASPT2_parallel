@@ -202,6 +202,7 @@ def write_effe_input(
 * Po2 parallel SO-CASSI — Phase 3 assembly: CASPT2(EFFE) for {spin}
 * Seward files injected from shared/ — no GATEWAY/SEWARD/RASSCF re-run.
 * H_eff matrix: {n_roots}x{n_roots} (full, KILL_INTRUDERS applied at RASSI level).
+* JobMix is produced in MOLCAS_WORKDIR; run_assemble.pbs copies it to shared/.
 
 {injection}
 >>COPY $CurrDir/shared/rasscf_{spin}.JobIph  $WorkDir/$Project.JobIph
@@ -213,8 +214,6 @@ def write_effe_input(
   Imaginary Shift= 0.25
   EFFE
 {effe_block}
-
->>COPY $Project.JobMix $CurrDir/shared/JobMix.{spin_label}
 End of Input
 """
     output_path.write_text(content)
