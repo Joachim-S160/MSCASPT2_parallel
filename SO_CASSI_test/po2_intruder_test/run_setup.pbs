@@ -1,7 +1,7 @@
 #!/bin/bash
 #PBS -A starting_2025_097
 #PBS -l nodes=1:ppn=1
-#PBS -l walltime=02:00:00
+#PBS -l walltime=06:00:00
 #PBS -l mem=20gb
 #PBS -N p2it_setup
 #PBS -m be
@@ -54,7 +54,7 @@ echo ""
 # LEVshift retry loop for RASSCF convergence
 # (especially needed at dissociation geometries)
 # ---------------------------------------------------------------------------
-LEVSHIFTS=(0.1 0.3 0.5)
+LEVSHIFTS=(0.3 0.5 1.0 1.5)
 SUCCESS=0
 
 for LS in "${LEVSHIFTS[@]}"; do
