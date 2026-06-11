@@ -54,7 +54,7 @@ echo ""
 # LEVshift retry loop for RASSCF convergence
 # (especially needed at dissociation geometries)
 # ---------------------------------------------------------------------------
-LEVSHIFTS=(0.3 0.5 1.0 1.5)
+LEVSHIFTS=(0.0 0.3 0.5 1.0 1.5)
 SUCCESS=0
 
 for LS in "${LEVSHIFTS[@]}"; do
