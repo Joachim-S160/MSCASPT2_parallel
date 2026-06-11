@@ -3,7 +3,7 @@
 #PBS -l nodes=1:ppn=1
 #PBS -l walltime=01:00:00
 #PBS -l mem=20gb
-#PBS -N po2_intruder_rassi
+#PBS -N p2it_rassi
 #
 # Po2 intruder-state test — Phase 5 RASSI job (per geometry).
 #

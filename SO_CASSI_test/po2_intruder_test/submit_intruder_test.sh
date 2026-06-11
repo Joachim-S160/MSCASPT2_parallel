@@ -63,7 +63,7 @@ for i in $(seq 0 $((N_GEOM - 1))); do
     mkdir -p "${SCRIPT_DIR}/run_${GEOM_PADDED}/shared"
 
     JID=$(qsub_or_dry \
-        -N "po2_intruder_setup_g${i}" \
+        -N "p2it_s_g${i}" \
         -v "GEOM_IDX=${i},XYZ_FILE=${XYZ_FILE}" \
         "${SCRIPT_DIR}/run_setup.pbs")
     SETUP_IDS+=("${JID}")
@@ -91,7 +91,7 @@ for i in $(seq 0 $((N_GEOM - 1))); do
             [ "${END}" -gt "${MAX_ROOT}" ] && END="${MAX_ROOT}"
 
             JID=$(qsub_or_dry ${SETUP_DEP} \
-                -N "po2_intruder_worker_g${i}_${SPIN:0:1}${BATCH_IDX}" \
+                -N "p2it_w_g${i}${SPIN:0:1}${BATCH_IDX}" \
                 -v "GEOM_IDX=${i},K=${K},SPIN=${SPIN},ROOT_START=${START},ROOT_END=${END},BATCH_IDX=${BATCH_IDX},FROZEN=${FROZEN}" \
                 "${SCRIPT_DIR}/run_worker.pbs")
 
@@ -115,7 +115,7 @@ echo "--- Phase 3: Global consensus ---"
 WORKER_DEP_STR="afterok:$(IFS=':'; echo "${ALL_WORKER_IDS[*]}")"
 
 CONSENSUS_ID=$(qsub_or_dry \
-    -N "po2_intruder_consensus" \
+    -N "p2it_cons" \
     -W "depend=${WORKER_DEP_STR}" \
     "${SCRIPT_DIR}/run_global_consensus.pbs")
 echo "  Consensus job: ${CONSENSUS_ID}  (depends on ${#ALL_WORKER_IDS[@]} workers)"
@@ -135,7 +135,7 @@ for i in $(seq 0 $((N_GEOM - 1))); do
     for SPIN in quintet triplet singlet; do
         N_ROOTS="${SPIN_N_ROOTS[$SPIN]}"
         JID=$(qsub_or_dry ${CONSENSUS_DEP} \
-            -N "po2_intruder_assemble_g${i}_${SPIN:0:1}" \
+            -N "p2it_a_g${i}${SPIN:0:1}" \
             -v "GEOM_IDX=${i},SPIN=${SPIN},N_ROOTS=${N_ROOTS}" \
             "${SCRIPT_DIR}/run_assemble.pbs")
         GEOM_ASSEMBLE_IDS+=("${JID}")
@@ -154,7 +154,7 @@ for i in $(seq 0 $((N_GEOM - 1))); do
     ASSEMBLE_DEP_STR="afterok:$(echo "${ASSEMBLE_IDS_BY_GEOM[$i]}" | tr ' ' ':')"
 
     JID=$(qsub_or_dry \
-        -N "po2_intruder_rassi_g${i}" \
+        -N "p2it_r_g${i}" \
         -W "depend=${ASSEMBLE_DEP_STR}" \
         -v "GEOM_IDX=${i}" \
         "${SCRIPT_DIR}/run_rassi.pbs")

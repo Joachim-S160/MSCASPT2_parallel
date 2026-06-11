@@ -3,7 +3,7 @@
 #PBS -l nodes=1:ppn=1
 #PBS -l walltime=00:20:00
 #PBS -l mem=8gb
-#PBS -N po2_intruder_assemble
+#PBS -N p2it_assemble
 #
 # Po2 intruder-state test — Phase 4 assembly job (per geometry, per spin).
 #

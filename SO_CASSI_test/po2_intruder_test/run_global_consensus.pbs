@@ -3,7 +3,7 @@
 #PBS -l nodes=1:ppn=1
 #PBS -l walltime=00:10:00
 #PBS -l mem=4gb
-#PBS -N po2_intruder_consensus
+#PBS -N p2it_cons
 #
 # Po2 intruder-state test — Phase 3: global KILL_INTRUDERS consensus.
 #
