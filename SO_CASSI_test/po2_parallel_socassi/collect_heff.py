@@ -236,6 +236,10 @@ def main() -> None:
                         help="Total roots in this spin block")
     parser.add_argument("--kill-intruders",  type=float, default=0.70,
                         help="Reference weight threshold (default: 0.70)")
+    parser.add_argument("--n-surviving-override", type=int, default=None,
+                        help="Skip per-geometry KILL_INTRUDERS and use this value for "
+                             "n_surviving. For multi-geometry runs where global_consensus.py "
+                             "has already determined the globally consistent value.")
     parser.add_argument("--workdir",         default=".",
                         help="Directory containing worker log files (default: .)")
     args = parser.parse_args()
@@ -244,6 +248,7 @@ def main() -> None:
     spin      = args.spin
     n_roots   = args.n_roots
     threshold = args.kill_intruders
+    n_surviving_override = args.n_surviving_override
 
     print(f"\n=== collect_heff.py: spin={spin}  n_roots={n_roots}  kill_intruders={threshold} ===")
 
@@ -262,7 +267,7 @@ def main() -> None:
     mean_w = sum(ref_weights) / len(ref_weights)
     print(f"  Min ref weight: {min_w:.5f}  Mean: {mean_w:.5f}")
 
-    # --- Apply KILL_INTRUDERS ---
+    # --- Apply KILL_INTRUDERS (or use global consensus override) ---
     trunc_at = find_truncation_point(ref_weights, threshold)
     if trunc_at == -1:
         n_surviving = n_roots
@@ -271,6 +276,12 @@ def main() -> None:
         n_surviving = trunc_at - 1
         print(f"  First root below {threshold}: root {trunc_at}  "
               f"→ keeping roots 1–{n_surviving} ({n_surviving}/{n_roots})")
+
+    if n_surviving_override is not None:
+        print(f"  n_surviving overridden {n_surviving} → {n_surviving_override} "
+              f"(from global consensus)")
+        n_surviving = n_surviving_override
+        trunc_at = n_surviving_override + 1 if n_surviving_override < n_roots else -1
 
     # --- Write EFFE input (full H_eff, truncation handled by RASSI) ---
     print(f"\n[3] Writing EFFE input...")

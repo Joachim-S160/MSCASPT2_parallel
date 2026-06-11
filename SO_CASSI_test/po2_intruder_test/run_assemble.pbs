@@ -1,0 +1,138 @@
+#!/bin/bash
+#PBS -A starting_2025_097
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=00:20:00
+#PBS -l mem=8gb
+#PBS -N po2_intruder_assemble
+#
+# Po2 intruder-state test — Phase 4 assembly job (per geometry, per spin).
+#
+# Reads N_surviving from global_consensus.json (written by Phase 3).
+# Runs collect_heff.py with --n-surviving-override to assemble the full H_eff matrix
+# but record the globally consistent N_surviving in heff_{spin}.json.
+# Then runs CASPT2(EFFE) — Seward files injected, no GATEWAY/SEWARD/RASSCF re-run.
+# Copies resulting JobMix to run_${GEOM_IDX}/shared/JobMix.{S5|S3|S1}.
+#
+# Parameters (pass via qsub -v):
+#   GEOM_IDX        integer 0..N_GEOM-1
+#   SPIN            quintet | triplet | singlet
+#   N_ROOTS         total roots in this spin block
+
+BENCH_DIR="${PBS_O_WORKDIR}"
+INSTALL_DIR="/dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE"
+source "${INSTALL_DIR}/setup_hortense.sh"
+source "${BENCH_DIR}/config.sh"
+
+: "${GEOM_IDX:?ERROR: GEOM_IDX not set}"
+: "${SPIN:?ERROR: SPIN not set}"
+: "${N_ROOTS:?ERROR: N_ROOTS not set}"
+
+GEOM_DIR="${BENCH_DIR}/run_$(printf "%02d" "${GEOM_IDX}")"
+
+export MOLCAS_MEM=6000
+export MOLCAS_PRINT=verbose
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+
+cd "${GEOM_DIR}"
+
+echo "========================================"
+echo "  Po2 intruder test — Assembly"
+echo "  GEOM_IDX=${GEOM_IDX}  SPIN=${SPIN}  N_ROOTS=${N_ROOTS}"
+echo "========================================"
+echo "Start:     $(date)"
+echo "Host:      $(hostname)"
+echo "PBS_JOBID: ${PBS_JOBID}"
+echo ""
+
+case "${SPIN}" in
+    quintet) SPIN_LABEL="S5" ;;
+    triplet)  SPIN_LABEL="S3" ;;
+    singlet) SPIN_LABEL="S1" ;;
+    *) echo "ERROR: unknown SPIN=${SPIN}"; exit 1 ;;
+esac
+
+# ---------------------------------------------------------------------------
+# Step 1: Read N_surviving from global consensus
+# ---------------------------------------------------------------------------
+CONSENSUS_JSON="${BENCH_DIR}/global_consensus.json"
+if [ ! -f "${CONSENSUS_JSON}" ]; then
+    echo "ERROR: global_consensus.json not found at ${CONSENSUS_JSON}"
+    echo "       Phase 3 (run_global_consensus.pbs) must complete before assembly."
+    exit 1
+fi
+
+N_SURV=$(python3 -c "
+import json, sys
+d = json.load(open('${CONSENSUS_JSON}'))
+print(d['n_surviving_${SPIN}'])
+")
+
+echo "N_surviving_${SPIN} from global consensus: ${N_SURV} / ${N_ROOTS}"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Step 2: Assemble H_eff and write EFFE input
+# ---------------------------------------------------------------------------
+echo "--- Running collect_heff.py at $(date) ---"
+
+python3 "${BENCH_DIR}/collect_heff.py" \
+    --spin                  "${SPIN}" \
+    --n-roots               "${N_ROOTS}" \
+    --kill-intruders        "${KILL_INTRUDERS}" \
+    --n-surviving-override  "${N_SURV}" \
+    --workdir               "${GEOM_DIR}"
+
+if [ $? -ne 0 ]; then
+    echo "ERROR: collect_heff.py failed."
+    exit 1
+fi
+
+if [ ! -f "${GEOM_DIR}/assemble_${SPIN}.input" ]; then
+    echo "ERROR: assemble_${SPIN}.input not generated."
+    exit 1
+fi
+echo ""
+
+# ---------------------------------------------------------------------------
+# Step 3: Run CASPT2(EFFE) — produces JobMix in MOLCAS_WORKDIR
+# ---------------------------------------------------------------------------
+MOLCAS_WORKDIR="${TMPDIR:-${GEOM_DIR}/molcas_tmp}/molcas_assemble_g${GEOM_IDX}_${SPIN}_${PBS_JOBID}"
+mkdir -p "${MOLCAS_WORKDIR}"
+export MOLCAS_WORKDIR
+echo "MOLCAS_WORKDIR: ${MOLCAS_WORKDIR}"
+echo ""
+
+echo "--- Starting pymolcas (CASPT2 EFFE) at $(date) ---"
+T_START=$(date +%s)
+
+pymolcas "${GEOM_DIR}/assemble_${SPIN}.input" > "${GEOM_DIR}/assemble_${SPIN}.log" 2>&1
+MOLCAS_EXIT=$?
+
+T_END=$(date +%s)
+echo "--- pymolcas exit=${MOLCAS_EXIT}  wall=$((T_END - T_START)) s ---"
+echo ""
+
+if ! grep -qi "happy landing" "${GEOM_DIR}/assemble_${SPIN}.log"; then
+    echo "ERROR: 'Happy landing' not found in assemble_${SPIN}.log"
+    exit 1
+fi
+echo "ASSEMBLY g${GEOM_IDX} ${SPIN}: Happy landing confirmed."
+
+# ---------------------------------------------------------------------------
+# Step 4: Copy JobMix to shared/
+# ---------------------------------------------------------------------------
+JOBMIX_SRC=$(find "${MOLCAS_WORKDIR}" -name "*.JobMix" 2>/dev/null | head -1)
+
+if [ -z "${JOBMIX_SRC}" ]; then
+    echo "ERROR: *.JobMix not found in ${MOLCAS_WORKDIR}"
+    ls -lh "${MOLCAS_WORKDIR}/" 2>/dev/null || true
+    exit 1
+fi
+
+mkdir -p "${GEOM_DIR}/shared"
+cp "${JOBMIX_SRC}" "${GEOM_DIR}/shared/JobMix.${SPIN_LABEL}"
+echo "Copied: ${JOBMIX_SRC##*/} → shared/JobMix.${SPIN_LABEL}"
+ls -lh "${GEOM_DIR}/shared/JobMix.${SPIN_LABEL}"
+echo ""
+echo "Assembly g${GEOM_IDX} ${SPIN} complete: $(date)"

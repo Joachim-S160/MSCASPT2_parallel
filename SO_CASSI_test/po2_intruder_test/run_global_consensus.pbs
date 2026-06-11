@@ -1,0 +1,56 @@
+#!/bin/bash
+#PBS -A starting_2025_097
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=00:10:00
+#PBS -l mem=4gb
+#PBS -N po2_intruder_consensus
+#
+# Po2 intruder-state test — Phase 3: global KILL_INTRUDERS consensus.
+#
+# Depends on ALL Phase 2 worker jobs (afterok dependency set by submit_intruder_test.sh).
+# Reads every run_NN/worker_{spin}_k*_b*.log across all geometries and spins.
+# Writes:
+#   global_consensus.json  — N_surviving per spin (consumed by Phase 4 + 5)
+#   refwt_all.dat          — long-format reference weight table (human QA)
+
+BENCH_DIR="${PBS_O_WORKDIR}"
+INSTALL_DIR="/dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE"
+source "${INSTALL_DIR}/setup_hortense.sh"
+
+source "${BENCH_DIR}/config.sh"
+
+cd "${BENCH_DIR}"
+
+echo "========================================"
+echo "  Po2 intruder test — Global Consensus"
+echo "  n_geom=${N_GEOM}  threshold=${KILL_INTRUDERS}"
+echo "  CIROOT: Q=${CIROOT_Q}  T=${CIROOT_T}  S=${CIROOT_S}"
+echo "========================================"
+echo "Start:     $(date)"
+echo "Host:      $(hostname)"
+echo "PBS_JOBID: ${PBS_JOBID}"
+echo ""
+
+python3 "${BENCH_DIR}/global_consensus.py" \
+    --n-geom          "${N_GEOM}" \
+    --kill-intruders  "${KILL_INTRUDERS}" \
+    --ciroot-q        "${CIROOT_Q}" \
+    --ciroot-t        "${CIROOT_T}" \
+    --ciroot-s        "${CIROOT_S}" \
+    --geom-r          "${GEOM_R[@]}" \
+    --workdir         "${BENCH_DIR}"
+
+if [ $? -ne 0 ]; then
+    echo "ERROR: global_consensus.py failed."
+    exit 1
+fi
+
+echo ""
+echo "--- global_consensus.json ---"
+cat "${BENCH_DIR}/global_consensus.json"
+echo ""
+echo "--- refwt_all.dat (first 10 lines after header) ---"
+grep -v "^#" "${BENCH_DIR}/refwt_all.dat" | head -10
+echo "..."
+echo ""
+echo "Global consensus complete: $(date)"

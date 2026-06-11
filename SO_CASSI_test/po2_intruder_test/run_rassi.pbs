@@ -1,0 +1,121 @@
+#!/bin/bash
+#PBS -A starting_2025_097
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=01:00:00
+#PBS -l mem=20gb
+#PBS -N po2_intruder_rassi
+#
+# Po2 intruder-state test — Phase 5 RASSI job (per geometry).
+#
+# Reads globally consistent N_Q/N_T/N_S from global_consensus.json.
+# Injects 10 Seward files + 3 JobMix files from run_${GEOM_IDX}/shared/.
+# Runs SO-RASSI: Nr of JobIphs = 3  N_Q  N_T  N_S (KILL_INTRUDERS applied here).
+#
+# Parameters (pass via qsub -v):
+#   GEOM_IDX    integer 0..N_GEOM-1
+
+BENCH_DIR="${PBS_O_WORKDIR}"
+INSTALL_DIR="/dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE"
+source "${INSTALL_DIR}/setup_hortense.sh"
+source "${BENCH_DIR}/config.sh"
+
+: "${GEOM_IDX:?ERROR: GEOM_IDX not set}"
+
+GEOM_DIR="${BENCH_DIR}/run_$(printf "%02d" "${GEOM_IDX}")"
+SHARED="${GEOM_DIR}/shared"
+
+export MOLCAS_MEM=16000
+export MOLCAS_PRINT=verbose
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+
+cd "${GEOM_DIR}"
+
+echo "========================================"
+echo "  Po2 intruder test — RASSI"
+echo "  GEOM_IDX=${GEOM_IDX}"
+echo "========================================"
+echo "Start:     $(date)"
+echo "Host:      $(hostname)"
+echo "PBS_JOBID: ${PBS_JOBID}"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Read globally consistent N_surviving from consensus JSON
+# ---------------------------------------------------------------------------
+CONSENSUS_JSON="${BENCH_DIR}/global_consensus.json"
+if [ ! -f "${CONSENSUS_JSON}" ]; then
+    echo "ERROR: global_consensus.json not found."
+    exit 1
+fi
+
+N_Q=$(python3 -c "import json; print(json.load(open('${CONSENSUS_JSON}'))['n_surviving_quintet'])")
+N_T=$(python3 -c "import json; print(json.load(open('${CONSENSUS_JSON}'))['n_surviving_triplet'])")
+N_S=$(python3 -c "import json; print(json.load(open('${CONSENSUS_JSON}'))['n_surviving_singlet'])")
+
+echo "N_surviving (from global consensus): Q=${N_Q}  T=${N_T}  S=${N_S}"
+echo "RASSI will use: Nr of JobIphs = 3  ${N_Q}  ${N_T}  ${N_S}"
+echo ""
+
+# Verify JobMix files exist
+for jm in JobMix.S5 JobMix.S3 JobMix.S1; do
+    if [ ! -f "${SHARED}/${jm}" ]; then
+        echo "ERROR: ${SHARED}/${jm} not found — assembly Phase 4 must complete first."
+        exit 1
+    fi
+done
+
+# ---------------------------------------------------------------------------
+# Generate RASSI input
+# ---------------------------------------------------------------------------
+MOLCAS_WORKDIR="${TMPDIR:-${GEOM_DIR}/molcas_tmp}/molcas_rassi_g${GEOM_IDX}_${PBS_JOBID}"
+mkdir -p "${MOLCAS_WORKDIR}"
+export MOLCAS_WORKDIR
+
+cat > "${GEOM_DIR}/rassi.input" << EOF
+* Po2 intruder-state test — Phase 5 SO-CASSI RASSI for geometry ${GEOM_IDX}
+* Nr of JobIphs = 3  ${N_Q}  ${N_T}  ${N_S}   (globally consistent KILL_INTRUDERS=${KILL_INTRUDERS})
+
+>>COPY \$CurrDir/shared/seward.RunFile  \$WorkDir/\$Project.RunFile
+>>COPY \$CurrDir/shared/seward.OneInt   \$WorkDir/\$Project.OneInt
+>>COPY \$CurrDir/shared/seward.SymInfo  \$WorkDir/\$Project.SymInfo
+>>COPY \$CurrDir/shared/seward.NqGrid   \$WorkDir/\$Project.NqGrid
+>>COPY \$CurrDir/shared/seward.ChVec1   \$WorkDir/\$Project.ChVec1
+>>COPY \$CurrDir/shared/seward.ChSel1   \$WorkDir/\$Project.ChSel1
+>>COPY \$CurrDir/shared/seward.ChRed    \$WorkDir/\$Project.ChRed
+>>COPY \$CurrDir/shared/seward.ChDiag   \$WorkDir/\$Project.ChDiag
+>>COPY \$CurrDir/shared/seward.ChMap    \$WorkDir/\$Project.ChMap
+>>COPY \$CurrDir/shared/seward.ChRst    \$WorkDir/\$Project.ChRst
+
+>>COPY \$CurrDir/shared/JobMix.S5  \$WorkDir/JOB001
+>>COPY \$CurrDir/shared/JobMix.S3  \$WorkDir/JOB002
+>>COPY \$CurrDir/shared/JobMix.S1  \$WorkDir/JOB003
+
+&RASSI
+  Nr of JobIphs = 3 ${N_Q} ${N_T} ${N_S}
+  Spin Orbit
+  HEFF
+End of Input
+EOF
+
+echo "--- Starting pymolcas (RASSI) at $(date) ---"
+T_START=$(date +%s)
+
+pymolcas "${GEOM_DIR}/rassi.input" > "${GEOM_DIR}/rassi.log" 2>&1
+MOLCAS_EXIT=$?
+
+T_END=$(date +%s)
+echo "--- exit=${MOLCAS_EXIT}  wall=$((T_END - T_START)) s ---"
+echo ""
+
+if ! grep -qi "happy landing" "${GEOM_DIR}/rassi.log"; then
+    echo "ERROR: 'Happy landing' not found in rassi.log"
+    exit 1
+fi
+echo "RASSI g${GEOM_IDX}: Happy landing confirmed."
+
+echo ""
+echo "--- SO-RASSI state energies (first 10 states) ---"
+grep "SO-RASSI State" "${GEOM_DIR}/rassi.log" | head -10
+echo ""
+echo "RASSI g${GEOM_IDX} complete: $(date)"

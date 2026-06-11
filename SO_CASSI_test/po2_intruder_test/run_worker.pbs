@@ -1,0 +1,120 @@
+#!/bin/bash
+#PBS -A starting_2025_097
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=00:30:00
+#PBS -l mem=8gb
+#PBS -N po2_intruder_worker
+#
+# Po2 intruder-state test — Phase 2 worker job (per geometry, per spin batch).
+#
+# Runs k sequential CASPT2(Only=N) blocks — no GATEWAY, SEWARD, or RASSCF.
+# Shared files injected from run_${GEOM_IDX}/shared/ (Lustre) into MOLCAS_WORKDIR (NVMe).
+#
+# Parameters (pass via qsub -v):
+#   GEOM_IDX    integer 0..N_GEOM-1
+#   K           roots per batch
+#   SPIN        quintet | triplet | singlet
+#   ROOT_START  first root index (inclusive, 1-based)
+#   ROOT_END    last root index (inclusive)
+#   BATCH_IDX   integer batch index (used for output file naming)
+#   FROZEN      frozen orbitals for CASPT2
+
+BENCH_DIR="${PBS_O_WORKDIR}"
+INSTALL_DIR="/dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE"
+source "${INSTALL_DIR}/setup_hortense.sh"
+
+: "${GEOM_IDX:?ERROR: GEOM_IDX not set}"
+: "${SPIN:?ERROR: SPIN not set}"
+: "${ROOT_START:?ERROR: ROOT_START not set}"
+: "${ROOT_END:?ERROR: ROOT_END not set}"
+: "${K:?ERROR: K not set}"
+: "${BATCH_IDX:?ERROR: BATCH_IDX not set}"
+: "${FROZEN:?ERROR: FROZEN not set}"
+
+GEOM_DIR="${BENCH_DIR}/run_$(printf "%02d" "${GEOM_IDX}")"
+SHARED="${GEOM_DIR}/shared"
+
+export MOLCAS_MEM=6000
+export MOLCAS_PRINT=verbose
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+
+cd "${GEOM_DIR}"
+
+echo "========================================"
+echo "  Po2 intruder test — Worker"
+echo "  GEOM_IDX=${GEOM_IDX}  SPIN=${SPIN}  k=${K}  batch=${BATCH_IDX}"
+echo "========================================"
+echo "Start:      $(date)"
+echo "Host:       $(hostname)"
+echo "PBS_JOBID:  ${PBS_JOBID}"
+echo "Roots:      ${ROOT_START}–${ROOT_END}"
+echo ""
+
+MOLCAS_WORKDIR="${TMPDIR:-${GEOM_DIR}/molcas_tmp}/molcas_g${GEOM_IDX}_${SPIN}_k${K}_b${BATCH_IDX}_${PBS_JOBID}"
+mkdir -p "${MOLCAS_WORKDIR}"
+export MOLCAS_WORKDIR
+echo "MOLCAS_WORKDIR: ${MOLCAS_WORKDIR}"
+echo ""
+
+OUTPUT_BASE="worker_${SPIN}_k${K}_b${BATCH_IDX}"
+INPUT="${GEOM_DIR}/${OUTPUT_BASE}.input"
+
+# Seward injection block (single-quoted — no shell expansion of $ inside)
+cat > "${INPUT}" << 'INJECT_EOF'
+* Po2 intruder-state test worker — pure CASPT2(Only=N) injection job
+* No GATEWAY / SEWARD / RASSCF — all outputs come from shared files.
+
+>>COPY $CurrDir/shared/seward.RunFile  $WorkDir/$Project.RunFile
+>>COPY $CurrDir/shared/seward.OneInt   $WorkDir/$Project.OneInt
+>>COPY $CurrDir/shared/seward.SymInfo  $WorkDir/$Project.SymInfo
+>>COPY $CurrDir/shared/seward.NqGrid   $WorkDir/$Project.NqGrid
+>>COPY $CurrDir/shared/seward.ChVec1   $WorkDir/$Project.ChVec1
+>>COPY $CurrDir/shared/seward.ChSel1   $WorkDir/$Project.ChSel1
+>>COPY $CurrDir/shared/seward.ChRed    $WorkDir/$Project.ChRed
+>>COPY $CurrDir/shared/seward.ChDiag   $WorkDir/$Project.ChDiag
+>>COPY $CurrDir/shared/seward.ChMap    $WorkDir/$Project.ChMap
+>>COPY $CurrDir/shared/seward.ChRst    $WorkDir/$Project.ChRst
+INJECT_EOF
+
+# JobIph line: SPIN expanded but $CurrDir/$WorkDir/$Project escaped
+echo ">>COPY \$CurrDir/shared/rasscf_${SPIN}.JobIph  \$WorkDir/\$Project.JobIph" >> "${INPUT}"
+echo "" >> "${INPUT}"
+
+# CASPT2 blocks
+for root in $(seq "${ROOT_START}" "${ROOT_END}"); do
+    cat >> "${INPUT}" << EOF
+
+&CASPT2
+  MAXITER=  300
+  Frozen=   ${FROZEN}
+  Multistate= all
+  Imaginary Shift= 0.25
+  Only= ${root}
+End of Input
+EOF
+done
+
+N_BATCH_ROOTS=$(( ROOT_END - ROOT_START + 1 ))
+echo "Generated input with ${N_BATCH_ROOTS} CASPT2 block(s) for roots ${ROOT_START}-${ROOT_END}"
+echo ""
+
+LOG_FILE="${GEOM_DIR}/${OUTPUT_BASE}.log"
+TIME_FILE="${GEOM_DIR}/${OUTPUT_BASE}.time"
+
+T_START=$(date +%s)
+/usr/bin/time -v pymolcas "${INPUT}" > "${LOG_FILE}" 2> "${TIME_FILE}"
+MOLCAS_EXIT=$?
+T_END=$(date +%s)
+WALL_S=$((T_END - T_START))
+
+echo "--- pymolcas exit=${MOLCAS_EXIT}  wall=${WALL_S} s ---"
+
+if grep -qi "happy landing" "${LOG_FILE}"; then
+    echo "SUCCESS g${GEOM_IDX} spin=${SPIN} k=${K} batch=${BATCH_IDX} roots=${ROOT_START}-${ROOT_END}"
+else
+    echo "FAILED  g${GEOM_IDX} spin=${SPIN} k=${K} batch=${BATCH_IDX} — no Happy landing"
+    exit 1
+fi
+
+echo "Done: $(date)"

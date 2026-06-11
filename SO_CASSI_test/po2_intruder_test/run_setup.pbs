@@ -1,0 +1,215 @@
+#!/bin/bash
+#PBS -A starting_2025_097
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=02:00:00
+#PBS -l mem=20gb
+#PBS -N po2_intruder_setup
+#PBS -m be
+#PBS -M joachim.scheerlinck@ugent.be
+#
+# Po2 intruder-state test — Phase 1 setup job (per geometry).
+#
+# Runs GATEWAY + SEWARD(Cholesky) + SCF + RASSCF(Q/T/S, cascade) for one geometry.
+# Saves 13 shared files to run_${GEOM_IDX}/shared/:
+#   10 Seward files: seward.{RunFile,OneInt,SymInfo,NqGrid,ChVec1,ChSel1,ChRed,ChDiag,ChMap,ChRst}
+#    3 JobIph files: rasscf_{quintet,triplet,singlet}.JobIph
+#
+# CAS parameters come from config.sh via qsub -v — nothing is hardcoded.
+# RASSCF starts from SCF orbitals (no pre-existing RasOrb needed).
+# LEVshift retry: tries 0.1, 0.3, 0.5 before giving up.
+#
+# Parameters (pass via qsub -v):
+#   GEOM_IDX    integer 0..N_GEOM-1
+#   XYZ_FILE    absolute path to xyz file for this geometry
+
+BENCH_DIR="${PBS_O_WORKDIR}"
+INSTALL_DIR="/dodrio/scratch/projects/starting_2025_097/autoCAS4HE_built/autoCAS4HE"
+source "${INSTALL_DIR}/setup_hortense.sh"
+source "${BENCH_DIR}/config.sh"
+
+: "${GEOM_IDX:?ERROR: GEOM_IDX not set}"
+: "${XYZ_FILE:?ERROR: XYZ_FILE not set}"
+
+GEOM_DIR="${BENCH_DIR}/run_$(printf "%02d" "${GEOM_IDX}")"
+mkdir -p "${GEOM_DIR}/shared"
+
+export MOLCAS_MEM=16000
+export MOLCAS_PRINT=verbose
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+
+cd "${GEOM_DIR}"
+
+echo "========================================"
+echo "  Po2 intruder test — Setup"
+echo "  GEOM_IDX=${GEOM_IDX}  XYZ=${XYZ_FILE##*/}"
+echo "  CIROOT: Q=${CIROOT_Q}  T=${CIROOT_T}  S=${CIROOT_S}"
+echo "========================================"
+echo "Start:     $(date)"
+echo "Host:      $(hostname)"
+echo "PBS_JOBID: ${PBS_JOBID}"
+echo ""
+
+# ---------------------------------------------------------------------------
+# LEVshift retry loop for RASSCF convergence
+# (especially needed at dissociation geometries)
+# ---------------------------------------------------------------------------
+LEVSHIFTS=(0.1 0.3 0.5)
+SUCCESS=0
+
+for LS in "${LEVSHIFTS[@]}"; do
+    MOLCAS_WORKDIR="${TMPDIR:-${GEOM_DIR}/molcas_tmp}/molcas_setup_g${GEOM_IDX}_lev${LS/./_}_${PBS_JOBID}"
+    mkdir -p "${MOLCAS_WORKDIR}"
+    export MOLCAS_WORKDIR
+
+    INPUT="${GEOM_DIR}/setup_lev${LS/./_}.input"
+    LOGFILE="${GEOM_DIR}/setup_lev${LS/./_}.log"
+
+    cat > "${INPUT}" << EOF
+* Po2 intruder-state test — Phase 1 setup for geometry ${GEOM_IDX}
+* GATEWAY + SEWARD + SCF + RASSCF(Q/T/S cascade, LEVshift=${LS})
+* CAS(${N_ELEC},${N_ORB}) / ${BASIS} / Inactive=${INACTIVE} / Frozen=${FROZEN}
+* CIROOT: Q=${CIROOT_Q} T=${CIROOT_T} S=${CIROOT_S}
+
+>> export MOLCAS_PRINT=verbose
+
+&GATEWAY
+  Title= Po2_intruder_g${GEOM_IDX}
+  Coord= ${XYZ_FILE}
+  Basis= ${BASIS}
+  Group= NoSym
+
+&SEWARD
+  Cholesky
+End of Input
+
+&SCF
+End of Input
+
+* ============================================================
+* QUINTET — starts from SCF orbitals
+* ============================================================
+&RASSCF
+  Symmetry= 1
+  Spin=     5
+  CIROOT=   ${CIROOT_Q} ${CIROOT_Q} 1
+  nActEl=   ${N_ELEC} 0 0
+  Inactive= ${INACTIVE}
+  Ras2=     ${N_ORB}
+  THRS=     1.0e-08 1.0e-04 1.0e-04
+  Levshft=  ${LS}
+  Iteration= 200 50
+  CIMX=     200
+  SDAV=     500
+End of Input
+
+>>COPY \$Project.JobIph \$CurrDir/shared/rasscf_quintet.JobIph
+>>COPY \$Project.RasOrb \$CurrDir/Quintet.RasOrb
+
+* ============================================================
+* TRIPLET — starts from quintet-optimised orbitals
+* ============================================================
+&RASSCF
+  FILEORB=  \$CurrDir/Quintet.RasOrb
+  Symmetry= 1
+  Spin=     3
+  CIROOT=   ${CIROOT_T} ${CIROOT_T} 1
+  nActEl=   ${N_ELEC} 0 0
+  Inactive= ${INACTIVE}
+  Ras2=     ${N_ORB}
+  THRS=     1.0e-08 1.0e-04 1.0e-04
+  Levshft=  ${LS}
+  Iteration= 200 50
+  CIMX=     200
+  SDAV=     500
+End of Input
+
+>>COPY \$Project.JobIph \$CurrDir/shared/rasscf_triplet.JobIph
+>>COPY \$Project.RasOrb \$CurrDir/Triplet.RasOrb
+
+* ============================================================
+* SINGLET — starts from triplet-optimised orbitals
+* ============================================================
+&RASSCF
+  FILEORB=  \$CurrDir/Triplet.RasOrb
+  Symmetry= 1
+  Spin=     1
+  CIROOT=   ${CIROOT_S} ${CIROOT_S} 1
+  nActEl=   ${N_ELEC} 0 0
+  Inactive= ${INACTIVE}
+  Ras2=     ${N_ORB}
+  THRS=     1.0e-08 1.0e-04 1.0e-04
+  Levshft=  ${LS}
+  Iteration= 200 50
+  CIMX=     200
+  SDAV=     500
+End of Input
+
+>>COPY \$Project.JobIph \$CurrDir/shared/rasscf_singlet.JobIph
+>>COPY \$Project.RasOrb \$CurrDir/Singlet.RasOrb
+
+* ============================================================
+* Save Seward files (persist in \$WorkDir throughout session)
+* ============================================================
+>>COPY \$Project.RunFile \$CurrDir/shared/seward.RunFile
+>>COPY \$Project.OneInt  \$CurrDir/shared/seward.OneInt
+>>COPY \$Project.SymInfo \$CurrDir/shared/seward.SymInfo
+>>COPY \$Project.NqGrid  \$CurrDir/shared/seward.NqGrid
+>>COPY \$Project.ChVec1  \$CurrDir/shared/seward.ChVec1
+>>COPY \$Project.ChSel1  \$CurrDir/shared/seward.ChSel1
+>>COPY \$Project.ChRed   \$CurrDir/shared/seward.ChRed
+>>COPY \$Project.ChDiag  \$CurrDir/shared/seward.ChDiag
+>>COPY \$Project.ChMap   \$CurrDir/shared/seward.ChMap
+>>COPY \$Project.ChRst   \$CurrDir/shared/seward.ChRst
+EOF
+
+    echo "--- Attempting LEVshift=${LS} at $(date) ---"
+    T_START=$(date +%s)
+    pymolcas "${INPUT}" > "${LOGFILE}" 2>&1
+    MOLCAS_EXIT=$?
+    T_END=$(date +%s)
+    echo "--- exit=${MOLCAS_EXIT}  wall=$((T_END - T_START)) s ---"
+
+    rm -rf "${MOLCAS_WORKDIR}"
+
+    if grep -qi "happy landing" "${LOGFILE}"; then
+        # Verify all 13 shared files were written
+        MISSING=0
+        for f in RunFile OneInt SymInfo NqGrid ChVec1 ChSel1 ChRed ChDiag ChMap ChRst; do
+            [ -f "${GEOM_DIR}/shared/seward.${f}" ] || { echo "  MISSING: shared/seward.${f}"; MISSING=1; }
+        done
+        for spin in quintet triplet singlet; do
+            [ -f "${GEOM_DIR}/shared/rasscf_${spin}.JobIph" ] || { echo "  MISSING: shared/rasscf_${spin}.JobIph"; MISSING=1; }
+        done
+        if [ "${MISSING}" -eq 0 ]; then
+            echo "SETUP g${GEOM_IDX}: Happy landing at LEVshift=${LS} — all 13 shared files written."
+            # Keep only the successful log
+            rm -f "${GEOM_DIR}"/setup_lev*.log
+            cp "${LOGFILE}" "${GEOM_DIR}/setup_success.log"
+            SUCCESS=1
+            break
+        else
+            echo "HARD FAIL g${GEOM_IDX}: Happy landing but shared files missing — check ${LOGFILE##*/}"
+            break
+        fi
+    fi
+
+    if grep -q "Floating point exception\|Convergence problem\|_RC_FLOATING_EXCEPTION_\|_RC_NOT_CONVERGED_" "${LOGFILE}"; then
+        echo "RETRY g${GEOM_IDX}: LEVshift=${LS} failed (FPE/convergence) — trying next"
+        continue
+    fi
+
+    echo "UNKNOWN FAILURE g${GEOM_IDX} at LEVshift=${LS} (exit=${MOLCAS_EXIT}) — stopping"
+    break
+done
+
+if [ "${SUCCESS}" -eq 0 ]; then
+    echo "FAILED g${GEOM_IDX}: all LEVshift values exhausted. Check setup_lev*.log"
+    exit 1
+fi
+
+echo ""
+echo "Shared files (${GEOM_DIR}/shared/):"
+ls -lh "${GEOM_DIR}/shared/"
+echo ""
+echo "Setup g${GEOM_IDX} complete: $(date)"

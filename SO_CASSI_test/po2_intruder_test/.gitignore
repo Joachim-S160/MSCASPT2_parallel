@@ -1,0 +1,16 @@
+run_*/shared/
+run_*/worker_*.input
+run_*/worker_*.log
+run_*/worker_*.time
+run_*/assemble_*.input
+run_*/assemble_*.log
+run_*/rassi.input
+run_*/rassi.log
+run_*/heff_*.json
+run_*/setup.input
+run_*/setup.log
+global_consensus.json
+refwt_all.dat
+__pycache__/
+*.pyc
+molcas_tmp/
