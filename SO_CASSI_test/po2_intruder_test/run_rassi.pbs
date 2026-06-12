@@ -53,6 +53,11 @@ N_Q=$(python3 -c "import json; print(json.load(open('${CONSENSUS_JSON}'))['n_sur
 N_T=$(python3 -c "import json; print(json.load(open('${CONSENSUS_JSON}'))['n_surviving_triplet'])")
 N_S=$(python3 -c "import json; print(json.load(open('${CONSENSUS_JSON}'))['n_surviving_singlet'])")
 
+# Root index lists required by RASSI when using explicit counts (not 'all')
+Q_ROOTS=$(python3 -c "print(' '.join(str(i) for i in range(1, ${N_Q}+1)))")
+T_ROOTS=$(python3 -c "print(' '.join(str(i) for i in range(1, ${N_T}+1)))")
+S_ROOTS=$(python3 -c "print(' '.join(str(i) for i in range(1, ${N_S}+1)))")
+
 echo "N_surviving (from global consensus): Q=${N_Q}  T=${N_T}  S=${N_S}"
 echo "RASSI will use: Nr of JobIphs = 3  ${N_Q}  ${N_T}  ${N_S}"
 echo ""
@@ -93,8 +98,12 @@ cat > "${GEOM_DIR}/rassi.input" << EOF
 
 &RASSI
   Nr of JobIphs = 3 ${N_Q} ${N_T} ${N_S}
+${Q_ROOTS}
+${T_ROOTS}
+${S_ROOTS}
   Spin Orbit
   HEFF
+  Omega
 End of Input
 EOF
 

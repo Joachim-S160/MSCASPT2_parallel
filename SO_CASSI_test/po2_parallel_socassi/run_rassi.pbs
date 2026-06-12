@@ -56,6 +56,10 @@ N_Q=$(python3 -c "import json; print(json.load(open('heff_quintet.json'))['n_sur
 N_T=$(python3 -c "import json; print(json.load(open('heff_triplet.json'))['n_surviving'])")
 N_S=$(python3 -c "import json; print(json.load(open('heff_singlet.json'))['n_surviving'])")
 
+Q_ROOTS=$(python3 -c "print(' '.join(str(i) for i in range(1, ${N_Q}+1)))")
+T_ROOTS=$(python3 -c "print(' '.join(str(i) for i in range(1, ${N_T}+1)))")
+S_ROOTS=$(python3 -c "print(' '.join(str(i) for i in range(1, ${N_S}+1)))")
+
 echo "KILL_INTRUDERS survivors:"
 echo "  Quintet: ${N_Q}  Triplet: ${N_T}  Singlet: ${N_S}"
 echo "  Nr of JobIphs = 3 ${N_Q} ${N_T} ${N_S}"
@@ -98,8 +102,12 @@ cat > "${BENCH_DIR}/rassi.input" << EOF
 
 &RASSI
   Nr of JobIphs = 3 ${N_Q} ${N_T} ${N_S}
+${Q_ROOTS}
+${T_ROOTS}
+${S_ROOTS}
   Spin Orbit
   HEFF
+  Omega
 End of Input
 EOF
 
